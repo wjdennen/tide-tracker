@@ -322,6 +322,20 @@
   .error-msg { text-align: center; padding: 40px 20px; color: var(--on-surface-variant); }
   .error-msg .err-icon { font-size: 40px; margin-bottom: 12px; }
   .error-msg p { font-size: 16px; line-height: 1.6; }
+  .error-card {
+    background: var(--surface-container); border-radius: 12px; padding: 28px 20px;
+    text-align: center; border: 1px solid rgba(255,100,48,0.2);
+    margin-bottom: 14px; min-width: 100%; box-sizing: border-box;
+  }
+  .error-card .ec-icon { font-size: 32px; margin-bottom: 12px; }
+  .error-card .ec-title { font-size: 16px; font-weight: 700; color: var(--on-surface); margin-bottom: 6px; }
+  .error-card .ec-msg { font-size: 14px; color: var(--on-surface-variant); line-height: 1.5; margin-bottom: 16px; }
+  .error-card .ec-retry {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface-high); border: 1px solid var(--outline-variant);
+    border-radius: 999px; padding: 8px 20px; cursor: pointer;
+    font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--primary);
+  }
 </style>
 </head>
 <body>
@@ -888,6 +902,16 @@ function switchTab(tab) {
   if (tab === '7day') renderWeek();
 }
 
+// ── Error helper ───────────────────────────────────────────
+function errorCard(retryFn) {
+  return `<div class="error-card">
+    <div class="ec-icon">🌊</div>
+    <div class="ec-title">Tide data unavailable</div>
+    <div class="ec-msg">NOAA couldn't be reached. Check your connection and try again.</div>
+    <div class="ec-retry" onclick="${retryFn}">↻ Retry</div>
+  </div>`;
+}
+
 // ── Dashboard ─────────────────────────────────────────────
 async function loadDashboard() {
   const station = getActiveStation();
@@ -903,6 +927,8 @@ async function loadDashboard() {
       fetchHourly(station.id, today),
     ]);
 
+    if (!hiloData.length && !hourlyData.length) throw new Error('No data returned');
+
     // Current height
     if (hourlyData.length) {
       const h = interpolateCurrentHeight(hourlyData);
@@ -915,6 +941,8 @@ async function loadDashboard() {
     }
 
     // Chart
+    document.getElementById('next-tide-strip').style.display = '';
+    document.getElementById('dash-chart-wrap').innerHTML = '<svg id="dash-svg" viewBox="0 0 360 100" preserveAspectRatio="none"></svg>';
     const svgEl = document.getElementById('dash-svg');
     buildChart(svgEl, hourlyData, hiloData, 360, 100, true);
 
@@ -937,6 +965,11 @@ async function loadDashboard() {
     }
   } catch(e) {
     console.error(e);
+    document.getElementById('cs-height').innerHTML = '—';
+    document.getElementById('cs-trend').innerHTML = '';
+    document.getElementById('dash-chart-wrap').innerHTML = errorCard('loadDashboard()');
+    document.getElementById('next-tide-strip').style.display = 'none';
+    document.getElementById('today-events').innerHTML = '';
   }
 
   fetchWind(station.id).then(w => { if(w) document.getElementById('wind-val').textContent = w; });
@@ -955,13 +988,19 @@ async function loadOutlook(station) {
   container.innerHTML = '';
   const today = new Date();
 
-  const [rows, weather] = await Promise.all([
-    Promise.all(Array.from({length:4}, (_,i) => {
-      const d = new Date(today); d.setDate(today.getDate()+i);
-      return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
-    })),
-    fetchNWSWeather(station.lat, station.lon),
-  ]);
+  let rows, weather;
+  try {
+    [rows, weather] = await Promise.all([
+      Promise.all(Array.from({length:4}, (_,i) => {
+        const d = new Date(today); d.setDate(today.getDate()+i);
+        return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
+      })),
+      fetchNWSWeather(station.lat, station.lon),
+    ]);
+  } catch(e) {
+    container.innerHTML = errorCard('loadOutlook(getActiveStation())');
+    return;
+  }
 
   rows.forEach((row, i) => {
     const highs = row.hilo.filter(t=>t.type==='H');
@@ -997,11 +1036,23 @@ function changeDate(delta) {
 async function renderTimeline() {
   const station = getActiveStation();
   document.getElementById('tl-date-label').textContent = selectedDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  document.getElementById('tl-forecast-list').innerHTML = '';
 
-  const [hiloData, hourlyData] = await Promise.all([
-    fetchHiLo(station.id, selectedDate),
-    fetchHourly(station.id, selectedDate),
-  ]);
+  let hiloData, hourlyData;
+  try {
+    [hiloData, hourlyData] = await Promise.all([
+      fetchHiLo(station.id, selectedDate),
+      fetchHourly(station.id, selectedDate),
+    ]);
+    if (!hiloData.length && !hourlyData.length) throw new Error('No data');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('tl-height').innerHTML = '—';
+    document.getElementById('tl-trend').innerHTML = '';
+    document.getElementById('tl-svg').innerHTML = '';
+    document.getElementById('tl-forecast-list').innerHTML = errorCard('renderTimeline()');
+    return;
+  }
 
   // Height
   const today = new Date();
@@ -1062,13 +1113,20 @@ async function renderWeek() {
   container.innerHTML = '<div class="skeleton skel-block" style="height:300px;border-radius:12px;"></div>';
 
   const today = new Date();
-  const [blocks, weather] = await Promise.all([
-    Promise.all(Array.from({length:7}, (_,i) => {
-      const d = new Date(today); d.setDate(today.getDate()+i);
-      return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
-    })),
-    fetchNWSWeather(station.lat, station.lon),
-  ]);
+  let blocks, weather;
+  try {
+    [blocks, weather] = await Promise.all([
+      Promise.all(Array.from({length:7}, (_,i) => {
+        const d = new Date(today); d.setDate(today.getDate()+i);
+        return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
+      })),
+      fetchNWSWeather(station.lat, station.lon),
+    ]);
+  } catch(e) {
+    console.error(e);
+    container.innerHTML = errorCard('renderWeek()');
+    return;
+  }
 
   container.innerHTML = '';
   blocks.forEach((block, idx) => {
