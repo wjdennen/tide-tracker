@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Portsmouth Tides</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tides">
+<meta name="theme-color" content="#131410">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --surface: #131410;
+    --surface-low: #1c1c18;
+    --surface-container: #20201c;
+    --surface-high: #2a2a26;
+    --surface-highest: #353530;
+    --on-surface: #f0ede6;
+    --on-surface-variant: #d0d4db;
+    --outline: #8d9198;
+    --outline-variant: #42474d;
+    --primary: #a8caef;
+    --primary-container: #002b49;
+    --on-primary: #0b3351;
+    --secondary: #ffb59d;
+    --tertiary: #9fcceb;
+    --background: #131410;
+    --ocean-blue: #002B49;
+    --sunset-orange: #F26430;
+    --seafoam: #86B3D1;
+    --sandy: #F4F1EA;
+    --font-display: 'Hanken Grotesk', sans-serif;
+    --font-mono: 'Geist Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--background);
+    color: var(--on-surface);
+    font-family: var(--font-display);
+    overscroll-behavior: none;
+  }
+
+  #app {
+    max-width: 430px;
+    margin: 0 auto;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  /* ── Top Nav ── */
+  .top-nav {
+    padding: 16px 18px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface);
+    z-index: 10;
+  }
+  .top-nav-left { display: flex; align-items: center; gap: 10px; }
+  .wave-icon { color: var(--primary); font-size: 22px; }
+  .app-title { font-size: 24px; font-weight: 700; line-height: 1.1; }
+  .app-title small { display: block; font-size: 13px; font-weight: 600; color: var(--on-surface-variant); letter-spacing: 0.04em; font-family: var(--font-display); }
+  .icon-btn { background: none; border: none; color: var(--on-surface-variant); cursor: pointer; padding: 6px; font-size: 20px; border-radius: 50%; transition: background 0.2s; }
+  .icon-btn:hover { background: var(--surface-high); }
+
+  /* ── Screen Container ── */
+  .screens { flex: 1; overflow: hidden; position: relative; }
+  .screen { position: absolute; inset: 0; overflow-y: auto; padding: 12px 16px 88px; display: none; }
+  .screen.active { display: block; }
+  .screen::-webkit-scrollbar { display: none; }
+
+  /* ── Bottom Nav ── */
+  .bottom-nav {
+    display: flex;
+    background: var(--surface-low);
+    border-top: 1px solid var(--outline-variant);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .nav-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px 16px; gap: 5px; cursor: pointer;
+    border: none; background: none; color: var(--on-surface-variant);
+    font-family: var(--font-display); font-size: 13px; font-weight: 600;
+    transition: color 0.2s;
+  }
+  .nav-tab svg { width: 24px; height: 24px; }
+  .nav-tab.active { color: var(--primary); }
+  .nav-tab.active svg path, .nav-tab.active svg rect, .nav-tab.active svg circle { fill: var(--primary); }
+
+  /* ── Cards ── */
+  .wave-card {
+    background: var(--surface-container);
+    border-radius: 24px 8px 12px 12px;
+    padding: 20px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: inset 1px 1px 0 rgba(255,255,255,0.05);
+  }
+  .card {
+    background: var(--surface-container);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .card-label {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--on-surface-variant);
+    margin-bottom: 10px;
+  }
+
+  /* ── Status Badge ── */
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(242,100,48,0.15); border: 1px solid rgba(242,100,48,0.3);
+    border-radius: 999px; padding: 5px 14px;
+    font-family: var(--font-display); font-size: 13px; font-weight: 700;
+    color: var(--sunset-orange); letter-spacing: 0.04em;
+  }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sunset-orange); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(0.8); } }
+
+  /* ── Current Status ── */
+  .current-status-card {
+    background: var(--surface-container);
+    border-radius: 24px 8px 12px 12px;
+    padding: 20px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 0 32px rgba(242,100,48,0.1), inset 1px 1px 0 rgba(255,255,255,0.07);
+    position: relative; overflow: hidden;
+  }
+  .current-height {
+    font-size: 64px; font-weight: 700; line-height: 1; margin: 10px 0 6px;
+    letter-spacing: -0.03em;
+  }
+  .current-height .ft { font-size: 28px; font-weight: 400; opacity: 0.7; margin-left: 6px; }
+  .trend-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(134,179,209,0.15); border: 1px solid rgba(134,179,209,0.25);
+    border-radius: 999px; padding: 6px 14px;
+    font-family: var(--font-display); font-size: 15px; font-weight: 700;
+    color: var(--seafoam);
+  }
+  .trend-badge.falling { background: rgba(255,181,157,0.15); border-color: rgba(255,181,157,0.25); color: var(--secondary); }
+
+  /* ── Tide Chart ── */
+  .tide-chart-wrap { position: relative; height: 130px; margin: 14px 0; }
+  .tide-chart-wrap svg { width: 100%; height: 100%; overflow: visible; }
+
+  /* Pulsating current marker */
+  @keyframes ring-pulse {
+    0%,100% { r: 6; opacity: 1; }
+    50% { r: 10; opacity: 0; }
+  }
+  .current-ring { animation: ring-pulse 2s infinite; }
+
+  /* ── Next Tide Strip ── */
+  .next-tide-strip {
+    background: var(--surface-high); border-radius: 10px; padding: 12px 16px;
+    margin-top: 10px;
+  }
+  .next-tide-info { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; color: var(--on-surface-variant); }
+
+  /* ── Section Titles ── */
+  .section-title {
+    font-size: 15px; font-weight: 700; color: var(--on-surface);
+    letter-spacing: 0.05em; text-transform: uppercase;
+    font-family: var(--font-display); margin: 20px 0 12px;
+  }
+
+  /* ── Today Events ── */
+  .tide-events-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .tide-events-scroll::-webkit-scrollbar { display: none; }
+  .tide-event-chip {
+    flex-shrink: 0; background: var(--surface-high); border-radius: 12px; padding: 12px 14px;
+    min-width: 94px; text-align: center; border: 1px solid var(--outline-variant);
+  }
+  .tide-event-chip .ev-type { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-surface-variant); margin-bottom: 7px; }
+  .tide-event-chip .ev-time { font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--on-surface); }
+  .tide-event-chip .ev-height { font-family: var(--font-mono); font-size: 14px; color: var(--primary); margin-top: 5px; }
+  .tide-event-chip.high .ev-type { color: var(--seafoam); }
+  .tide-event-chip.low .ev-type { color: var(--secondary); }
+
+  /* ── Conditions ── */
+  .conditions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .cond-card { background: var(--surface-high); border-radius: 12px; padding: 16px; border: 1px solid var(--outline-variant); }
+  .cond-icon { font-size: 24px; margin-bottom: 8px; }
+  .cond-label { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-surface-variant); }
+  .cond-value { font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--on-surface); margin-top: 5px; }
+
+  /* ── 7-Day Outlook ── */
+  .outlook-row { display: flex; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--outline-variant); }
+  .outlook-row:last-child { border-bottom: none; }
+  .outlook-day { font-family: var(--font-display); font-size: 15px; font-weight: 700; width: 50px; color: var(--on-surface); }
+  .outlook-weather { font-size: 22px; margin: 0 12px; }
+  .outlook-desc { flex: 1; font-size: 15px; color: var(--on-surface); line-height: 1.4; }
+  .outlook-tides { text-align: right; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; }
+  .outlook-high { color: var(--seafoam); }
+  .outlook-low { color: var(--secondary); }
+
+  /* ── Timeline Screen ── */
+  .date-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .date-nav-btn { background: var(--surface-high); border: 1px solid var(--outline-variant); color: var(--on-surface); border-radius: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 20px; }
+  .date-center { text-align: center; }
+  .date-label { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-surface-variant); }
+  .date-value { font-size: 26px; font-weight: 700; margin-top: 2px; }
+
+  .timeline-height { font-size: 56px; font-weight: 700; letter-spacing: -0.03em; }
+  .timeline-height .sign { color: var(--seafoam); }
+  .timeline-height.negative .sign { color: var(--secondary); }
+
+  /* ── Forecast List ── */
+  .forecast-item {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface-container); border-radius: 14px; padding: 16px;
+    margin-bottom: 10px; border: 1px solid var(--outline-variant);
+  }
+  .forecast-icon-wrap { width: 44px; height: 44px; background: var(--ocean-blue); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .forecast-info { flex: 1; }
+  .forecast-type { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-surface-variant); margin-bottom: 3px; }
+  .forecast-time { font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--on-surface); }
+  .forecast-height { text-align: right; }
+  .forecast-height .fh-val { font-family: var(--font-mono); font-size: 26px; font-weight: 700; }
+  .forecast-height .fh-val.high { color: var(--seafoam); }
+  .forecast-height .fh-val.low { color: var(--secondary); }
+  .forecast-height .fh-label { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--on-surface-variant); margin-top: 2px; }
+
+  /* Sunrise/Sunset chips */
+  .astro-chips { display: flex; gap: 10px; margin-bottom: 14px; }
+  .astro-chip {
+    flex: 1; display: flex; align-items: center; gap: 12px;
+    background: var(--surface-high); border-radius: 12px; padding: 14px;
+    border: 1px solid var(--outline-variant);
+  }
+  .astro-chip .ac-icon { font-size: 22px; }
+  .ac-info {}
+  .ac-label { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--on-surface-variant); text-transform: uppercase; }
+  .ac-time { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--on-surface); margin-top: 2px; }
+
+  /* ── 7-Day Screen ── */
+  .week-day-block { margin-bottom: 0; }
+  .week-day-header { padding: 14px 0 10px; }
+  .week-day-header .wd-date { font-size: 22px; font-weight: 700; }
+  .week-day-header .wd-day { font-family: var(--font-display); font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--on-surface-variant); margin-bottom: 3px; }
+  .week-tide-row { display: flex; gap: 8px; margin-bottom: 4px; }
+  .week-tide-cell { flex: 1; background: var(--surface-high); border-radius: 10px; padding: 10px 12px; border: 1px solid var(--outline-variant); }
+  .wtc-label { font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+  .wtc-label.h { color: var(--seafoam); }
+  .wtc-label.l { color: var(--secondary); }
+  .wtc-time { font-family: var(--font-mono); font-size: 14px; color: var(--on-surface); margin-top: 4px; }
+  .wtc-ht { font-family: var(--font-mono); font-size: 17px; font-weight: 700; color: var(--on-surface); margin-top: 2px; }
+  .week-divider { height: 1px; background: var(--outline-variant); margin: 12px 0; }
+
+  /* ── Map Screen ── */
+  .map-search { display: flex; align-items: center; gap: 10px; background: var(--surface-high); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid var(--outline-variant); }
+  .map-search input { flex: 1; background: none; border: none; outline: none; color: var(--on-surface); font-family: var(--font-display); font-size: 16px; }
+  .map-search input::placeholder { color: var(--on-surface-variant); }
+  #map { height: 240px; border-radius: 12px; overflow: hidden; margin-bottom: 16px; background: var(--surface-high); }
+  .nearby-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .station-card { background: var(--surface-container); border-radius: 14px; padding: 16px; margin-bottom: 10px; border: 1px solid var(--outline-variant); cursor: pointer; transition: border-color 0.2s; }
+  .station-card:hover { border-color: var(--primary); }
+  .station-card.active { border-color: var(--primary); background: rgba(168,202,239,0.07); }
+  .station-tag { font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--sunset-orange); margin-bottom: 5px; }
+  .station-name { font-size: 18px; font-weight: 700; }
+  .station-meta { font-family: var(--font-mono); font-size: 14px; color: var(--on-surface-variant); margin-top: 6px; }
+  .station-arrow { float: right; color: var(--primary); margin-top: -22px; font-size: 22px; }
+
+  /* ── Skeleton / Loading ── */
+  .skeleton { background: linear-gradient(90deg, var(--surface-high) 25%, var(--surface-highest) 50%, var(--surface-high) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skel-block { height: 20px; margin-bottom: 10px; }
+
+  /* ── Date Picker ── */
+  .datepicker-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .datepicker-overlay.open { opacity: 1; pointer-events: all; }
+  .datepicker-sheet {
+    background: var(--surface-low); border-radius: 20px 20px 0 0;
+    padding: 20px; width: 100%; max-width: 430px;
+    transform: translateY(100%); transition: transform 0.25s ease;
+  }
+  .datepicker-overlay.open .datepicker-sheet { transform: translateY(0); }
+  .dp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .dp-month { font-size: 18px; font-weight: 700; }
+  .dp-nav { background: var(--surface-high); border: 1px solid var(--outline-variant); color: var(--on-surface); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; }
+  .dp-weekdays { display: grid; grid-template-columns: repeat(7,1fr); margin-bottom: 8px; }
+  .dp-weekday { text-align: center; font-family: var(--font-display); font-size: 12px; font-weight: 700; color: var(--on-surface-variant); padding: 4px 0; }
+  .dp-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+  .dp-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; font-family: var(--font-display); font-size: 15px; font-weight: 500;
+    cursor: pointer; color: var(--on-surface); transition: background 0.15s;
+  }
+  .dp-day:hover { background: var(--surface-high); }
+  .dp-day.today { border: 1px solid var(--primary); color: var(--primary); }
+  .dp-day.selected { background: var(--primary); color: var(--on-primary); font-weight: 700; }
+  .dp-day.other-month { color: var(--outline); }
+  .dp-day.empty { cursor: default; }
+
+  /* ── Error state ── */
+  .error-msg { text-align: center; padding: 40px 20px; color: var(--on-surface-variant); }
+  .error-msg .err-icon { font-size: 40px; margin-bottom: 12px; }
+  .error-msg p { font-size: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <div class="top-nav-left">
+      <span class="wave-icon">〰</span>
+      <div class="app-title">
+        Portsmouth Tides
+        <small id="station-subtitle">SAKONNET RIVER</small>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <button class="icon-btn" id="reload-btn" title="Refresh" onclick="reloadData()">↻</button>
+      <button class="icon-btn" title="Location" onclick="cycleStation()">📍</button>
+    </div>
+  </div>
+
+  <!-- Screens -->
+  <div class="screens">
+
+    <!-- DASHBOARD -->
+    <div class="screen active" id="screen-dashboard">
+      <div class="current-status-card" id="cs-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span class="card-label">Current Status</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="cs-time" style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--on-surface-variant);"></span>
+            <span class="live-badge"><span class="live-dot"></span>LIVE</span>
+          </div>
+        </div>
+        <div class="current-height" id="cs-height"><span class="skeleton skel-block" style="width:120px;height:48px;"></span></div>
+        <div id="cs-trend" style="margin:8px 0 12px;"></div>
+        <div class="tide-chart-wrap" id="dash-chart-wrap">
+          <svg id="dash-svg" viewBox="0 0 360 100" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="next-tide-strip" id="next-tide-strip">
+          <div class="next-tide-info">
+            <span>⏱</span>
+            <span id="next-tide-label">Next tide…</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">Today's Tide Events</div>
+      <div class="tide-events-scroll" id="today-events"></div>
+
+      <div style="margin-top:12px;"><div class="section-title">Conditions</div>
+      <div class="conditions-grid" id="conditions-grid">
+        <div class="cond-card"><div class="cond-icon">💨</div><div class="cond-label">Wind</div><div class="cond-value" id="wind-val">—</div></div>
+        <div class="cond-card"><div class="cond-icon">🌡</div><div class="cond-label">Water Temp</div><div class="cond-value" id="wtemp-val">—</div></div>
+        <div class="cond-card"><div class="cond-icon" id="moon-icon">🌑</div><div class="cond-label">Moon</div><div class="cond-value" style="font-size:11px;" id="moon-val">—</div></div>
+        <div class="cond-card"><div class="cond-icon">🌊</div><div class="cond-label">Station</div><div class="cond-value" style="font-size:11px;" id="station-val">—</div></div>
+      </div></div>
+
+      <div style="margin-top:12px;">
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">7-Day Outlook <span style="font-size:11px;cursor:pointer;color:var(--primary);" onclick="switchTab('7day')">View All →</span></div>
+        <div id="outlook-list"></div>
+      </div>
+    </div>
+
+    <!-- TIMELINE -->
+    <div class="screen" id="screen-timeline">
+      <div class="date-nav">
+        <button class="date-nav-btn" onclick="changeDate(-1)">‹</button>
+        <div class="date-center" onclick="openDatePicker()" style="cursor:pointer;user-select:none;">
+          <div class="date-label">Selected Date ▾</div>
+          <div class="date-value" id="tl-date-label">—</div>
+        </div>
+        <button class="date-nav-btn" onclick="changeDate(1)">›</button>
+      </div>
+
+      <div class="wave-card">
+        <div class="card-label">Current Height</div>
+        <div class="timeline-height" id="tl-height">—</div>
+        <div id="tl-trend" style="margin-top:8px;"></div>
+        <div class="tide-chart-wrap" style="height:160px; margin-top:16px;">
+          <svg id="tl-svg" viewBox="0 0 360 140" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+
+      <div class="astro-chips" id="astro-chips">
+        <div class="astro-chip"><span class="ac-icon">🌅</span><div class="ac-info"><div class="ac-label">Sunrise</div><div class="ac-time" id="ac-sunrise">—</div></div></div>
+        <div class="astro-chip"><span class="ac-icon">🌇</span><div class="ac-info"><div class="ac-label">Sunset</div><div class="ac-time" id="ac-sunset">—</div></div></div>
+      </div>
+
+      <div class="section-title">Daily Forecast</div>
+      <div id="tl-forecast-list"></div>
+    </div>
+
+    <!-- 7-DAY -->
+    <div class="screen" id="screen-7day">
+      <div style="margin-bottom:8px;">
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px;">7-Day Forecast</div>
+        <div style="font-size:13px;color:var(--on-surface-variant);" id="week-subtitle">High and low tides · Sakonnet River</div>
+      </div>
+      <div style="display:flex;gap:16px;margin-bottom:16px;">
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--seafoam);">● HIGH TIDE</span>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--secondary);">● LOW TIDE</span>
+      </div>
+      <div id="week-list"></div>
+    </div>
+
+    <!-- MAP -->
+    <div class="screen" id="screen-map">
+      <div class="map-search">
+        <span style="color:var(--on-surface-variant);">🔍</span>
+        <input type="text" placeholder="Search coastal spots…" id="map-search-input">
+        <span style="color:var(--on-surface-variant);">🎯</span>
+      </div>
+      <div id="map"></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
+        <div class="nearby-title">Nearby Stations</div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);">RI Coastal</div>
+      </div>
+      <div id="stations-list"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-tab" data-tab="timeline" onclick="switchTab('timeline')">
+      <svg viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+      Timeline
+    </button>
+    <button class="nav-tab" data-tab="7day" onclick="switchTab('7day')">
+      <svg viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm0 16H5V8h14v11zm-7-9H7v2h5V10zm3 4H7v2h10v-2z"/></svg>
+      7-Day
+    </button>
+    <button class="nav-tab" data-tab="map" onclick="switchTab('map')">
+      <svg viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+      Map
+    </button>
+  </nav>
+</div>
+
+<!-- Leaflet for map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ── Constants ─────────────────────────────────────────────
+const NOAA_BASE = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
+
+const STATIONS = [
+  { id: '8454049', name: 'Sakonnet Point', location: 'Sakonnet River, RI', lat: 41.4551, lon: -71.1997, tag: 'PRIMARY STATION' },
+  { id: '8452660', name: 'Newport', location: 'Newport, RI', lat: 41.5043, lon: -71.3267, tag: 'NEARBY' },
+  { id: '8452944', name: 'Conimicut Point', location: 'Narragansett Bay, RI', lat: 41.7167, lon: -71.3833, tag: 'NEARBY' },
+];
+
+// ── State ──────────────────────────────────────────────────
+let currentStationIdx = 0;
+let selectedDate = new Date();
+let tideData = {}; // cache by "stationId-YYYYMMDD"
+let weekData = {};
+let map = null;
+let mapInitialized = false;
+let nwsWeather = null; // cache: date-string → {emoji, desc, tempF}
+let todayHiloData = []; // kept for live countdown
+
+// ── Utilities ──────────────────────────────────────────────
+function fmt(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return `${y}${m}${d}`;
+}
+function fmtDisplay(date) {
+  return date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+}
+function fmtTime(dtStr) {
+  // dtStr: "2023-10-24 06:30"
+  const [,time] = dtStr.split(' ');
+  const [h,m] = time.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+function fmtHeight(v) {
+  const n = parseFloat(v);
+  return (n >= 0 ? '+' : '') + n.toFixed(1);
+}
+
+// ── NOAA API ───────────────────────────────────────────────
+async function fetchHiLo(stationId, date) {
+  const key = `${stationId}-${fmt(date)}`;
+  if (tideData[key]) return tideData[key];
+  const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=portsmouth_tides&format=json`;
+  const res = await fetch(url);
+  const json = await res.json();
+  const data = json.predictions || [];
+  tideData[key] = data;
+  return data;
+}
+
+async function fetchHourly(stationId, date) {
+  const key = `hourly-${stationId}-${fmt(date)}`;
+  if (tideData[key]) return tideData[key];
+  const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&application=portsmouth_tides&format=json`;
+  const res = await fetch(url);
+  const json = await res.json();
+  const data = json.predictions || [];
+  tideData[key] = data;
+  return data;
+}
+
+async function fetchWaterTemp(stationId) {
+  try {
+    const today = fmt(new Date());
+    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=water_temperature&datum=MLLW&time_zone=lst_ldt&units=english&application=portsmouth_tides&format=json`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.data && json.data.length) return json.data[json.data.length-1].v + '°F';
+  } catch {}
+  return null;
+}
+
+async function fetchWind(stationId) {
+  try {
+    const today = fmt(new Date());
+    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=wind&datum=MLLW&time_zone=lst_ldt&units=english&application=portsmouth_tides&format=json`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.data && json.data.length) {
+      const last = json.data[json.data.length-1];
+      return `${Math.round(last.s)} kt ${last.dr}`;
+    }
+  } catch {}
+  return null;
+}
+
+// ── NWS Weather ───────────────────────────────────────────
+function nwsIconToEmoji(iconUrl) {
+  const path = (iconUrl || '').toLowerCase();
+  if (path.includes('tsra') || path.includes('thunder')) return '⛈';
+  if (path.includes('snow') || path.includes('blizzard') || path.includes('sleet')) return '🌨';
+  if (path.includes('rain') || path.includes('showers')) return '🌧';
+  if (path.includes('fog') || path.includes('haze')) return '🌫';
+  if (path.includes('wind')) return '💨';
+  if (path.includes('ovc') || path.includes('overcast')) return '☁️';
+  if (path.includes('bkn') || path.includes('mostly_cloudy')) return '🌥';
+  if (path.includes('sct') || path.includes('few')) return '⛅';
+  if (path.includes('skc') || path.includes('clear') || path.includes('sunny')) return '☀️';
+  return '🌤';
+}
+
+async function fetchNWSWeather(lat, lon) {
+  if (nwsWeather) return nwsWeather;
+  try {
+    const ptRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`, {
+      headers: { 'User-Agent': 'PortsmouthTides/1.0 (dennen@gmail.com)' }
+    });
+    const ptJson = await ptRes.json();
+    const forecastUrl = ptJson.properties?.forecast;
+    if (!forecastUrl) return null;
+
+    const fcRes = await fetch(forecastUrl, {
+      headers: { 'User-Agent': 'PortsmouthTides/1.0 (dennen@gmail.com)' }
+    });
+    const fcJson = await fcRes.json();
+    const periods = fcJson.properties?.periods || [];
+
+    // Build a map of YYYY-MM-DD → daytime period data
+    const byDate = {};
+    for (const p of periods) {
+      if (!p.isDaytime) continue;
+      const dateKey = p.startTime.slice(0, 10);
+      byDate[dateKey] = {
+        emoji: nwsIconToEmoji(p.icon),
+        desc: p.shortForecast,
+        tempF: p.temperature,
+        wind: p.windSpeed + ' ' + p.windDirection,
+      };
+    }
+    nwsWeather = byDate;
+    return byDate;
+  } catch (e) {
+    console.warn('NWS weather fetch failed:', e);
+    return null;
+  }
+}
+
+// Sun times estimate for a given lat/lon
+function getSunTimes(date, lat, lon) {
+  const doy = Math.floor((date - new Date(date.getFullYear(),0,0)) / 86400000);
+  const declination = 23.45 * Math.sin((360/365 * (doy - 81)) * Math.PI / 180);
+  const latR = lat * Math.PI / 180;
+  const decR = declination * Math.PI / 180;
+  const haRad = Math.acos(-Math.tan(latR) * Math.tan(decR));
+  const ha = haRad * 180 / Math.PI;
+  // UTC offset for the date (crude: EDT=-4, EST=-5 based on month)
+  const mo = date.getMonth() + 1;
+  const utcOff = (mo >= 3 && mo <= 11) ? -4 : -5;
+  // Solar noon in local time: noon_UTC = 12 - lon/15, then add utcOff
+  const noon = 12 - lon / 15 + utcOff;
+  const rise = noon - ha / 15;
+  const set  = noon + ha / 15;
+  const toTime = h => {
+    const total = ((h % 24) + 24) % 24;
+    const hr = Math.floor(total);
+    const min = Math.round((total - hr) * 60);
+    const ampm = hr >= 12 ? 'PM' : 'AM';
+    return `${hr % 12 || 12}:${String(min).padStart(2,'0')} ${ampm}`;
+  };
+  return { sunrise: toTime(rise), sunset: toTime(set) };
+}
+
+// Interpolate current height from hourly data
+function interpolateCurrentHeight(hourlyData) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  for (let i = 0; i < hourlyData.length - 1; i++) {
+    const a = hourlyData[i], b = hourlyData[i+1];
+    const [,aTime] = a.t.split(' ');
+    const [ah,am] = aTime.split(':').map(Number);
+    const aMin = ah*60+am;
+    if (nowMin >= aMin && nowMin < aMin+60) {
+      const frac = (nowMin - aMin) / 60;
+      return parseFloat(a.v) + frac * (parseFloat(b.v) - parseFloat(a.v));
+    }
+  }
+  if (hourlyData.length) return parseFloat(hourlyData[hourlyData.length-1].v);
+  return 0;
+}
+
+function getTrend(hourlyData) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  for (let i = 0; i < hourlyData.length - 1; i++) {
+    const a = hourlyData[i], b = hourlyData[i+1];
+    const [,aTime] = a.t.split(' ');
+    const [ah,am] = aTime.split(':').map(Number);
+    if (nowMin >= ah*60+am && nowMin < ah*60+am+60) {
+      return parseFloat(b.v) > parseFloat(a.v) ? 'rising' : 'falling';
+    }
+  }
+  return 'rising';
+}
+
+function getNextTideLabel(hiloData) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  for (const t of hiloData) {
+    const [,time] = t.t.split(' ');
+    const [h,m] = time.split(':').map(Number);
+    const tMin = h*60+m;
+    if (tMin > nowMin) {
+      const diffMin = tMin - nowMin;
+      const hrs = Math.floor(diffMin/60), mins = diffMin%60;
+      return `${t.type === 'H' ? 'Next High' : 'Next Low'}: ${hrs}h ${mins}m · ${fmtTime(t.t)}`;
+    }
+  }
+  return null;
+}
+
+// ── Moon Phase ─────────────────────────────────────────────
+function getMoonPhase(date) {
+  const KNOWN_NEW_MOON = new Date('2000-01-06T18:14:00Z');
+  const LUNAR_CYCLE = 29.53059;
+  const days = (date - KNOWN_NEW_MOON) / 86400000;
+  const phase = ((days % LUNAR_CYCLE) + LUNAR_CYCLE) % LUNAR_CYCLE;
+  const idx = Math.round(phase / LUNAR_CYCLE * 8) % 8;
+  const emojis = ['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'];
+  const names  = ['New Moon','Waxing Crescent','First Quarter','Waxing Gibbous',
+                  'Full Moon','Waning Gibbous','Third Quarter','Waning Crescent'];
+  return { emoji: emojis[idx], name: names[idx] };
+}
+
+// ── SVG Tide Chart ─────────────────────────────────────────
+function buildChart(svgEl, hourlyData, hiloData, viewW, viewH, showCurrentMarker) {
+  svgEl.innerHTML = '';
+  if (!hourlyData.length) return;
+
+  const vals = hourlyData.map(d => parseFloat(d.v));
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const padX = 0, padY = 8;
+  const W = viewW - padX*2, H = viewH - padY*2;
+
+  const toX = i => padX + (i / (hourlyData.length-1)) * W;
+  const toY = v => padY + H - ((v - minV) / range) * H;
+
+  // Build path
+  let d = `M ${toX(0)} ${toY(vals[0])}`;
+  for (let i = 1; i < vals.length; i++) {
+    const cpx = (toX(i-1) + toX(i)) / 2;
+    d += ` C ${cpx} ${toY(vals[i-1])}, ${cpx} ${toY(vals[i])}, ${toX(i)} ${toY(vals[i])}`;
+  }
+  const areaD = d + ` L ${toX(vals.length-1)} ${viewH} L ${toX(0)} ${viewH} Z`;
+
+  const ns = 'http://www.w3.org/2000/svg';
+  const defs = document.createElementNS(ns,'defs');
+
+  // Gradient fill
+  const gId = 'tg' + Math.random().toString(36).slice(2);
+  const grad = document.createElementNS(ns,'linearGradient');
+  grad.setAttribute('id',gId); grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
+  grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
+  const s1 = document.createElementNS(ns,'stop'); s1.setAttribute('offset','0%'); s1.setAttribute('stop-color','#86B3D1'); s1.setAttribute('stop-opacity','0.35');
+  const s2 = document.createElementNS(ns,'stop'); s2.setAttribute('offset','100%'); s2.setAttribute('stop-color','#131410'); s2.setAttribute('stop-opacity','0.05');
+  grad.append(s1,s2); defs.append(grad); svgEl.append(defs);
+
+  // Area
+  const area = document.createElementNS(ns,'path');
+  area.setAttribute('d',areaD); area.setAttribute('fill',`url(#${gId})`);
+  svgEl.append(area);
+
+  // Line
+  const line = document.createElementNS(ns,'path');
+  line.setAttribute('d',d); line.setAttribute('fill','none');
+  line.setAttribute('stroke','#86B3D1'); line.setAttribute('stroke-width','2');
+  line.setAttribute('stroke-linejoin','round');
+  svgEl.append(line);
+
+  // HiLo markers
+  for (const t of hiloData) {
+    const [,time] = t.t.split(' ');
+    const [h,m] = time.split(':').map(Number);
+    const idx = h; // hourly index ≈ hour
+    if (idx < 0 || idx >= hourlyData.length) continue;
+    const x = toX(idx), y = toY(parseFloat(t.v));
+    const dot = document.createElementNS(ns,'circle');
+    dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('r','4');
+    dot.setAttribute('fill', t.type==='H' ? '#86B3D1' : '#ffb59d');
+    dot.setAttribute('stroke','#131410'); dot.setAttribute('stroke-width','1.5');
+    svgEl.append(dot);
+
+    const lbl = document.createElementNS(ns,'text');
+    lbl.setAttribute('x',x); lbl.setAttribute('y', t.type==='H' ? y-10 : y+16);
+    lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('fill','#d0d4db');
+    lbl.setAttribute('font-size','11'); lbl.setAttribute('font-family','Geist Mono, monospace');
+    lbl.textContent = (t.type==='H' ? 'H' : 'L');
+    svgEl.append(lbl);
+  }
+
+  // Current time marker
+  if (showCurrentMarker) {
+    const now = new Date();
+    const todayStr = fmt(now);
+    const firstDate = hourlyData[0].t.split(' ')[0].replace(/-/g,'');
+    if (todayStr === firstDate) {
+      const nowFrac = (now.getHours() * 60 + now.getMinutes()) / (23*60+59);
+      const cx = padX + nowFrac * W;
+      const currentH = interpolateCurrentHeight(hourlyData);
+      const cy = toY(currentH);
+
+      // Full-height vertical line
+      const vl = document.createElementNS(ns,'line');
+      vl.setAttribute('x1',cx); vl.setAttribute('y1','0');
+      vl.setAttribute('x2',cx); vl.setAttribute('y2',viewH);
+      vl.setAttribute('stroke','#F26430'); vl.setAttribute('stroke-width','2');
+      svgEl.append(vl);
+
+      // Small dot at the wave intersection
+      const dot2 = document.createElementNS(ns,'circle');
+      dot2.setAttribute('cx',cx); dot2.setAttribute('cy',cy); dot2.setAttribute('r','4');
+      dot2.setAttribute('fill','#F26430');
+      dot2.setAttribute('stroke','#131410'); dot2.setAttribute('stroke-width','1.5');
+      svgEl.append(dot2);
+    }
+  }
+
+  // Time labels
+  const labelHours = [0,6,12,18,23];
+  for (const h of labelHours) {
+    if (h >= hourlyData.length) continue;
+    const x = toX(h);
+    const lbl = document.createElementNS(ns,'text');
+    lbl.setAttribute('x',x); lbl.setAttribute('y',viewH);
+    lbl.setAttribute('text-anchor', h===0?'start': h===23?'end':'middle');
+    lbl.setAttribute('fill','#c8cdd4'); lbl.setAttribute('font-size','11');
+    lbl.setAttribute('font-family','Geist Mono, monospace');
+    lbl.textContent = h===0?'00:00':h===6?'06:00':h===12?'12:00':h===18?'18:00':'23:59';
+    svgEl.append(lbl);
+  }
+}
+
+// ── Tab Switching ──────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-'+tab).classList.add('active');
+  document.querySelector(`.nav-tab[data-tab="${tab}"]`).classList.add('active');
+  if (tab === 'map' && !mapInitialized) initMap();
+  if (tab === 'timeline') renderTimeline();
+  if (tab === '7day') renderWeek();
+}
+
+// ── Station Cycle ──────────────────────────────────────────
+function cycleStation() {
+  currentStationIdx = (currentStationIdx + 1) % STATIONS.length;
+  document.getElementById('station-subtitle').textContent = STATIONS[currentStationIdx].location.split(',')[0].toUpperCase();
+  loadAll();
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+async function loadDashboard() {
+  const station = STATIONS[currentStationIdx];
+  document.getElementById('station-val').textContent = station.name;
+  const moonNow = getMoonPhase(new Date());
+  document.getElementById('moon-icon').textContent = moonNow.emoji;
+  document.getElementById('moon-val').textContent = moonNow.name;
+
+  const today = new Date();
+  try {
+    const [hiloData, hourlyData] = await Promise.all([
+      fetchHiLo(station.id, today),
+      fetchHourly(station.id, today),
+    ]);
+
+    // Current height
+    if (hourlyData.length) {
+      const h = interpolateCurrentHeight(hourlyData);
+      document.getElementById('cs-height').innerHTML = `${h.toFixed(1)}<span class="ft"> ft</span>`;
+      const trend = getTrend(hourlyData);
+      document.getElementById('cs-trend').innerHTML =
+        `<span class="trend-badge ${trend==='falling'?'falling':''}">
+          ${trend==='rising'?'↑ Rising Tide':'↓ Falling Tide'}
+        </span>`;
+    }
+
+    // Chart
+    const svgEl = document.getElementById('dash-svg');
+    buildChart(svgEl, hourlyData, hiloData, 360, 100, true);
+
+    // Next tide — store for live countdown
+    todayHiloData = hiloData;
+    const nextLabel = getNextTideLabel(hiloData);
+    if (nextLabel) document.getElementById('next-tide-label').textContent = nextLabel;
+
+    // Today events
+    const evContainer = document.getElementById('today-events');
+    evContainer.innerHTML = '';
+    for (const t of hiloData) {
+      const chip = document.createElement('div');
+      chip.className = `tide-event-chip ${t.type==='H'?'high':'low'}`;
+      chip.innerHTML = `
+        <div class="ev-type">${t.type==='H'?'HIGH':'LOW'}</div>
+        <div class="ev-time">${fmtTime(t.t)}</div>
+        <div class="ev-height">${fmtHeight(t.v)} ft</div>`;
+      evContainer.append(chip);
+    }
+  } catch(e) {
+    console.error(e);
+  }
+
+  // Conditions — Newport has wind sensors, Providence has water temp
+  fetchWind('8452660').then(w => { if(w) document.getElementById('wind-val').textContent = w; });
+  fetchWaterTemp('8454000').then(t => { if(t) document.getElementById('wtemp-val').textContent = t; });
+
+  // Outlook (next 4 days)
+  loadOutlook(station);
+}
+
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function dateKey(d) { return d.toISOString().slice(0,10); }
+
+async function loadOutlook(station) {
+  const container = document.getElementById('outlook-list');
+  container.innerHTML = '';
+  const today = new Date();
+
+  const [rows, weather] = await Promise.all([
+    Promise.all(Array.from({length:4}, (_,i) => {
+      const d = new Date(today); d.setDate(today.getDate()+i);
+      return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
+    })),
+    fetchNWSWeather(station.lat, station.lon),
+  ]);
+
+  rows.forEach((row, i) => {
+    const highs = row.hilo.filter(t=>t.type==='H');
+    const lows  = row.hilo.filter(t=>t.type==='L');
+    const wx = weather?.[dateKey(row.date)];
+    const emoji = wx?.emoji ?? '🌤';
+    const desc  = wx?.desc  ?? '—';
+    const temp  = wx ? `${wx.tempF}°F` : '';
+    const el = document.createElement('div');
+    el.className = 'outlook-row';
+    el.innerHTML = `
+      <div class="outlook-day">${i===0?'TODAY':DAYS[row.date.getDay()]}</div>
+      <div class="outlook-weather">${emoji}</div>
+      <div class="outlook-desc">
+        <div>${desc}</div>
+        ${temp ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;">${temp}</div>` : ''}
+      </div>
+      <div class="outlook-tides">
+        ${highs.slice(0,2).map(t=>`<div class="outlook-high">H ${fmtTime(t.t)}</div>`).join('')}
+        ${lows.slice(0,1).map(t=>`<div class="outlook-low">L ${fmtTime(t.t)}</div>`).join('')}
+      </div>`;
+    container.append(el);
+  });
+}
+
+// ── Timeline ───────────────────────────────────────────────
+function changeDate(delta) {
+  selectedDate = new Date(selectedDate);
+  selectedDate.setDate(selectedDate.getDate() + delta);
+  renderTimeline();
+}
+
+async function renderTimeline() {
+  const station = STATIONS[currentStationIdx];
+  document.getElementById('tl-date-label').textContent = selectedDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+
+  const [hiloData, hourlyData] = await Promise.all([
+    fetchHiLo(station.id, selectedDate),
+    fetchHourly(station.id, selectedDate),
+  ]);
+
+  // Height
+  const today = new Date();
+  const isToday = fmt(today) === fmt(selectedDate);
+  let h, trend;
+  if (isToday && hourlyData.length) {
+    h = interpolateCurrentHeight(hourlyData);
+    trend = getTrend(hourlyData);
+  } else if (hiloData.length) {
+    h = parseFloat(hiloData[0].v);
+    trend = null;
+  }
+
+  const sign = h >= 0 ? '+' : '';
+  document.getElementById('tl-height').innerHTML = `<span class="sign">${sign}</span>${Math.abs(h).toFixed(1)}<span style="font-size:20px;font-weight:400;opacity:0.7"> ft</span>`;
+  if (trend) {
+    document.getElementById('tl-trend').innerHTML = `<span class="trend-badge ${trend==='falling'?'falling':''}">↑ ${trend.toUpperCase()}</span>`;
+  } else {
+    document.getElementById('tl-trend').innerHTML = '';
+  }
+
+  // Chart
+  buildChart(document.getElementById('tl-svg'), hourlyData, hiloData, 360, 140, isToday);
+
+  // Astro
+  const sun = getSunTimes(selectedDate, station.lat, station.lon);
+  document.getElementById('ac-sunrise').textContent = sun.sunrise;
+  document.getElementById('ac-sunset').textContent = sun.sunset;
+
+  // Forecast list
+  const list = document.getElementById('tl-forecast-list');
+  list.innerHTML = '';
+  for (const t of hiloData) {
+    const isHigh = t.type === 'H';
+    const div = document.createElement('div');
+    div.className = 'forecast-item';
+    const ht = parseFloat(t.v);
+    const peakLabel = isHigh ? 'PEAK INTENSITY' : 'FULL SLACK';
+    div.innerHTML = `
+      <div class="forecast-icon-wrap">${isHigh?'⬆':'⬇'}</div>
+      <div class="forecast-info">
+        <div class="forecast-type">${isHigh?'HIGH TIDE':'LOW TIDE'}</div>
+        <div class="forecast-time">${fmtTime(t.t)}</div>
+      </div>
+      <div class="forecast-height">
+        <div class="fh-val ${isHigh?'high':'low'}">${fmtHeight(ht)} ft</div>
+        <div class="fh-label">${peakLabel}</div>
+      </div>`;
+    list.append(div);
+  }
+}
+
+// ── 7-Day ──────────────────────────────────────────────────
+async function renderWeek() {
+  const station = STATIONS[currentStationIdx];
+  document.getElementById('week-subtitle').textContent = `High and low tides · ${station.location}`;
+  const container = document.getElementById('week-list');
+  container.innerHTML = '<div class="skeleton skel-block" style="height:300px;border-radius:12px;"></div>';
+
+  const today = new Date();
+  const [blocks, weather] = await Promise.all([
+    Promise.all(Array.from({length:7}, (_,i) => {
+      const d = new Date(today); d.setDate(today.getDate()+i);
+      return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
+    })),
+    fetchNWSWeather(station.lat, station.lon),
+  ]);
+
+  container.innerHTML = '';
+  blocks.forEach((block, idx) => {
+    const dayLabel = idx===0 ? 'TODAY' : block.date.toLocaleDateString('en-US',{weekday:'short'}).toUpperCase();
+    const dateStr  = block.date.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const wx = weather?.[dateKey(block.date)];
+    const moon = getMoonPhase(block.date);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'week-day-block';
+
+    let weatherRow = '';
+    if (wx) {
+      weatherRow = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:22px;">${wx.emoji}</span>
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--on-surface);">${wx.desc}</div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);">${wx.tempF}°F · ${wx.wind}</div>
+          </div>
+        </div>`;
+    }
+
+    let html = `
+      <div class="week-day-header">
+        <div class="wd-day">${dayLabel} <span style="font-size:16px;float:right;" title="${moon.name}">${moon.emoji}</span></div>
+        <div class="wd-date">${dateStr}</div>
+      </div>
+      ${weatherRow}`;
+
+    if (block.hilo.length) {
+      html += '<div class="week-tide-row">';
+      for (const t of block.hilo) {
+        const isH = t.type==='H';
+        html += `<div class="week-tide-cell">
+          <div class="wtc-label ${isH?'h':'l'}">${isH?'HIGH':'LOW'}</div>
+          <div class="wtc-time">${fmtTime(t.t)}</div>
+          <div class="wtc-ht">${fmtHeight(t.v)}'</div>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    if (idx < 6) html += '<div class="week-divider"></div>';
+    wrap.innerHTML = html;
+    container.append(wrap);
+  });
+}
+
+// ── Map ────────────────────────────────────────────────────
+function initMap() {
+  mapInitialized = true;
+  const station = STATIONS[0];
+  map = L.map('map', { zoomControl: false, attributionControl: false }).setView([station.lat, station.lon], 11);
+
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Esri'
+  }).addTo(map);
+
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  const stationList = document.getElementById('stations-list');
+  stationList.innerHTML = '';
+
+  STATIONS.forEach((s, i) => {
+    const icon = L.divIcon({
+      html: `<div style="width:12px;height:12px;border-radius:50%;background:${i===0?'#F26430':'#86B3D1'};border:2px solid white;"></div>`,
+      className: '', iconSize: [12,12], iconAnchor: [6,6]
+    });
+    L.marker([s.lat, s.lon], { icon }).addTo(map)
+      .bindPopup(`<b>${s.name}</b><br>${s.location}`)
+      .on('click', () => selectStation(i));
+
+    const card = document.createElement('div');
+    card.className = 'station-card' + (i===0?' active':'');
+    card.id = 'scard-'+i;
+    card.innerHTML = `
+      <div class="station-tag">${s.tag}</div>
+      <div class="station-name">${s.name}</div>
+      <div class="station-meta" id="scard-meta-${i}">Loading…</div>
+      <div class="station-arrow">›</div>`;
+    card.onclick = () => selectStation(i);
+    stationList.append(card);
+
+    // Load current status for each station card
+    fetchHiLo(s.id, new Date()).then(hilo => {
+      const next = hilo.find(t => {
+        const [,time] = t.t.split(' ');
+        const [h,m] = time.split(':').map(Number);
+        const now = new Date();
+        return h*60+m > now.getHours()*60+now.getMinutes();
+      });
+      if (next) {
+        const isH = next.type==='H';
+        document.getElementById(`scard-meta-${i}`).innerHTML =
+          `<span style="color:${isH?'#86B3D1':'#ffb59d'}">${isH?'↑':'↓'} ${fmtHeight(next.v)} ft</span> · Next: ${fmtTime(next.t)}`;
+      }
+    }).catch(()=>{});
+  });
+}
+
+function selectStation(idx) {
+  document.querySelectorAll('.station-card').forEach((c,i) => c.classList.toggle('active', i===idx));
+  const s = STATIONS[idx];
+  map.flyTo([s.lat, s.lon], 12, { duration: 1 });
+  currentStationIdx = idx;
+  document.getElementById('station-subtitle').textContent = s.location.split(',')[0].toUpperCase();
+  switchTab('dashboard');
+  loadAll();
+}
+
+// ── Reload ─────────────────────────────────────────────────
+async function reloadData() {
+  tideData = {};
+  nwsWeather = null;
+  const btn = document.getElementById('reload-btn');
+  btn.style.transition = 'transform 0.6s ease';
+  btn.style.transform = 'rotate(360deg)';
+  setTimeout(() => { btn.style.transition = 'none'; btn.style.transform = 'rotate(0deg)'; }, 650);
+  await loadAll();
+  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
+  if (activeTab === 'timeline') renderTimeline();
+  if (activeTab === '7day') { weekData = {}; renderWeek(); }
+}
+
+// ── Service Worker ─────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(console.warn);
+}
+
+// ── Auto-refresh every 15 minutes ──────────────────────────
+setInterval(() => {
+  tideData = {};
+  nwsWeather = null;
+  loadDashboard();
+  const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
+  if (activeTab === 'timeline') renderTimeline();
+  if (activeTab === '7day') { weekData = {}; renderWeek(); }
+}, 15 * 60 * 1000);
+
+// ── Clock + live countdown ──────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = now.getHours() % 12 || 12;
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+  document.getElementById('cs-time').textContent = `${h}:${m} ${ampm}`;
+  if (todayHiloData.length) {
+    const label = getNextTideLabel(todayHiloData);
+    if (label) document.getElementById('next-tide-label').textContent = label;
+  }
+}
+updateClock();
+setInterval(updateClock, 60000);
+
+// ── Init ───────────────────────────────────────────────────
+async function loadAll() {
+  loadDashboard();
+}
+
+loadAll();
+
+// ── Date Picker ─────────────────────────────────────────────
+let dpYear, dpMonth;
+
+function openDatePicker() {
+  const d = new Date(selectedDate);
+  dpYear = d.getFullYear();
+  dpMonth = d.getMonth();
+  renderDatePicker();
+  const overlay = document.getElementById('dp-overlay');
+  overlay.classList.add('open');
+}
+
+function closeDatePicker() {
+  document.getElementById('dp-overlay').classList.remove('open');
+}
+
+function renderDatePicker() {
+  const monthNames = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+  document.getElementById('dp-month-label').textContent = `${monthNames[dpMonth]} ${dpYear}`;
+
+  const today = new Date();
+  const sel = new Date(selectedDate);
+
+  const firstDay = new Date(dpYear, dpMonth, 1).getDay();
+  const daysInMonth = new Date(dpYear, dpMonth + 1, 0).getDate();
+  const daysInPrev = new Date(dpYear, dpMonth, 0).getDate();
+
+  let html = '';
+  // Leading days from prev month
+  for (let i = firstDay - 1; i >= 0; i--) {
+    html += `<div class="dp-day other-month">${daysInPrev - i}</div>`;
+  }
+  // Days of this month
+  for (let d = 1; d <= daysInMonth; d++) {
+    const thisDate = new Date(dpYear, dpMonth, d);
+    const isToday = thisDate.toDateString() === today.toDateString();
+    const isSel = thisDate.toDateString() === sel.toDateString();
+    const cls = ['dp-day', isToday ? 'today' : '', isSel ? 'selected' : ''].filter(Boolean).join(' ');
+    html += `<div class="${cls}" onclick="pickDate(${dpYear},${dpMonth},${d})">${d}</div>`;
+  }
+  // Trailing days to fill grid
+  const total = firstDay + daysInMonth;
+  const trailing = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let d = 1; d <= trailing; d++) {
+    html += `<div class="dp-day other-month">${d}</div>`;
+  }
+  document.getElementById('dp-days').innerHTML = html;
+}
+
+function dpNavMonth(delta) {
+  dpMonth += delta;
+  if (dpMonth < 0) { dpMonth = 11; dpYear--; }
+  if (dpMonth > 11) { dpMonth = 0; dpYear++; }
+  renderDatePicker();
+}
+
+function pickDate(y, m, d) {
+  selectedDate = new Date(y, m, d);
+  closeDatePicker();
+  renderTimeline();
+}
+</script>
+
+<!-- Date Picker Overlay -->
+<div class="datepicker-overlay" id="dp-overlay" onclick="if(event.target===this)closeDatePicker()">
+  <div class="datepicker-sheet">
+    <div class="dp-header">
+      <button class="dp-nav" onclick="dpNavMonth(-1)">‹</button>
+      <div class="dp-month" id="dp-month-label"></div>
+      <button class="dp-nav" onclick="dpNavMonth(1)">›</button>
+    </div>
+    <div class="dp-weekdays">
+      <div class="dp-weekday">Su</div><div class="dp-weekday">Mo</div>
+      <div class="dp-weekday">Tu</div><div class="dp-weekday">We</div>
+      <div class="dp-weekday">Th</div><div class="dp-weekday">Fr</div>
+      <div class="dp-weekday">Sa</div>
+    </div>
+    <div class="dp-days" id="dp-days"></div>
+  </div>
+</div>
+</body>
+</html>
