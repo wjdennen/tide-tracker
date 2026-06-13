@@ -834,9 +834,10 @@ function buildChart(svgEl, hourlyData, hiloData, viewW, viewH, showCurrentMarker
   for (const t of hiloData) {
     const [,time] = t.t.split(' ');
     const [h,m] = time.split(':').map(Number);
-    const idx = h; // hourly index ≈ hour
-    if (idx < 0 || idx >= hourlyData.length) continue;
-    const x = toX(idx), y = toY(parseFloat(t.v));
+    const exactIdx = h + m / 60; // fractional hour for precise placement
+    if (exactIdx < 0 || exactIdx >= hourlyData.length) continue;
+    const x = padX + (exactIdx / (hourlyData.length - 1)) * W;
+    const y = toY(parseFloat(t.v));
     const dot = document.createElementNS(ns,'circle');
     dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('r','4');
     dot.setAttribute('fill', t.type==='H' ? '#86B3D1' : '#ffb59d');
