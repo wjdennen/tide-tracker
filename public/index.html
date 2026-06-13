@@ -337,7 +337,7 @@
     </div>
     <div style="display:flex;gap:4px;align-items:center;">
       <button class="icon-btn" id="reload-btn" title="Refresh" onclick="reloadData()">↻</button>
-      <button class="icon-btn" title="Location" onclick="cycleStation()">📍</button>
+      <button class="icon-btn" title="Manage Locations" onclick="switchTab('map')">📍</button>
     </div>
   </div>
 
@@ -434,13 +434,13 @@
     <div class="screen" id="screen-map">
       <div class="map-search">
         <span style="color:var(--on-surface-variant);">🔍</span>
-        <input type="text" placeholder="Search coastal spots…" id="map-search-input">
-        <span style="color:var(--on-surface-variant);">🎯</span>
+        <input type="text" placeholder="Search NOAA tide stations…" id="map-search-input" autocomplete="off">
+        <span style="color:var(--on-surface-variant);cursor:pointer;" onclick="locateMe()" title="Use my location">🎯</span>
       </div>
+      <div id="search-results" style="margin-bottom:4px;"></div>
       <div id="map"></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;">
-        <div class="nearby-title">Nearby Stations</div>
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);">RI Coastal</div>
+      <div style="margin-bottom:12px;">
+        <div class="nearby-title">My Locations</div>
       </div>
       <div id="stations-list"></div>
     </div>
@@ -475,21 +475,78 @@
 // ── Constants ─────────────────────────────────────────────
 const NOAA_BASE = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter';
 
-const STATIONS = [
-  { id: '8454049', name: 'Sakonnet Point', location: 'Sakonnet River, RI', lat: 41.4551, lon: -71.1997, tag: 'PRIMARY STATION' },
-  { id: '8452660', name: 'Newport', location: 'Newport, RI', lat: 41.5043, lon: -71.3267, tag: 'NEARBY' },
-  { id: '8452944', name: 'Conimicut Point', location: 'Narragansett Bay, RI', lat: 41.7167, lon: -71.3833, tag: 'NEARBY' },
-];
+// ── Station Management ─────────────────────────────────────
+let savedStations = [];
+let activeStationId = null;
+let allNoaaStations = null;
+let noaaStationsLoading = false;
+let searchResults = [];
 
-// ── State ──────────────────────────────────────────────────
-let currentStationIdx = 0;
+function getActiveStation() {
+  return savedStations.find(s => s.id === activeStationId) || savedStations[0];
+}
+
+function persistStations() {
+  localStorage.setItem('tw-stations', JSON.stringify({ stations: savedStations, activeId: activeStationId }));
+}
+
+function loadSavedStations() {
+  try {
+    const raw = localStorage.getItem('tw-stations');
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d.stations && d.stations.length) {
+        savedStations = d.stations;
+        activeStationId = d.activeId || savedStations[0].id;
+        return;
+      }
+    }
+  } catch {}
+  savedStations = [{ id: '8454049', name: 'Sakonnet Point', location: 'Sakonnet River, RI', lat: 41.4551, lon: -71.1997 }];
+  activeStationId = '8454049';
+  persistStations();
+}
+
+function addStation(s) {
+  if (!savedStations.find(st => st.id === s.id)) {
+    savedStations.push(s);
+    persistStations();
+  }
+  document.getElementById('map-search-input').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  searchResults = [];
+  selectStation(s.id);
+}
+
+function removeStation(id) {
+  if (savedStations.length <= 1) return;
+  savedStations = savedStations.filter(s => s.id !== id);
+  if (activeStationId === id) activeStationId = savedStations[0].id;
+  persistStations();
+  if (mapInitialized) { refreshMapMarkers(); renderSavedStationCards(); }
+}
+
+function selectStation(id) {
+  activeStationId = id;
+  persistStations();
+  nwsWeather = null;
+  tideData = {};
+  weekData = {};
+  const s = getActiveStation();
+  document.getElementById('station-subtitle').textContent = (s.location || s.name).split(',')[0].toUpperCase();
+  switchTab('dashboard');
+  loadAll();
+}
+
+// ── App State ──────────────────────────────────────────────
 let selectedDate = new Date();
-let tideData = {}; // cache by "stationId-YYYYMMDD"
+let tideData = {};
 let weekData = {};
 let map = null;
 let mapInitialized = false;
-let nwsWeather = null; // cache: date-string → {emoji, desc, tempF}
-let todayHiloData = []; // kept for live countdown
+let mapMarkers = [];
+let nwsWeather = null;
+let todayHiloData = [];
 
 // ── Utilities ──────────────────────────────────────────────
 function fmt(date) {
@@ -518,7 +575,7 @@ function fmtHeight(v) {
 async function fetchHiLo(stationId, date) {
   const key = `${stationId}-${fmt(date)}`;
   if (tideData[key]) return tideData[key];
-  const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=portsmouth_tides&format=json`;
+  const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=tidewatch&format=json`;
   const res = await fetch(url);
   const json = await res.json();
   const data = json.predictions || [];
@@ -529,7 +586,7 @@ async function fetchHiLo(stationId, date) {
 async function fetchHourly(stationId, date) {
   const key = `hourly-${stationId}-${fmt(date)}`;
   if (tideData[key]) return tideData[key];
-  const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&application=portsmouth_tides&format=json`;
+  const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&application=tidewatch&format=json`;
   const res = await fetch(url);
   const json = await res.json();
   const data = json.predictions || [];
@@ -540,7 +597,7 @@ async function fetchHourly(stationId, date) {
 async function fetchWaterTemp(stationId) {
   try {
     const today = fmt(new Date());
-    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=water_temperature&datum=MLLW&time_zone=lst_ldt&units=english&application=portsmouth_tides&format=json`;
+    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=water_temperature&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
     const res = await fetch(url);
     const json = await res.json();
     if (json.data && json.data.length) return json.data[json.data.length-1].v + '°F';
@@ -551,7 +608,7 @@ async function fetchWaterTemp(stationId) {
 async function fetchWind(stationId) {
   try {
     const today = fmt(new Date());
-    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=wind&datum=MLLW&time_zone=lst_ldt&units=english&application=portsmouth_tides&format=json`;
+    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=wind&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
     const res = await fetch(url);
     const json = await res.json();
     if (json.data && json.data.length) {
@@ -815,21 +872,17 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('screen-'+tab).classList.add('active');
   document.querySelector(`.nav-tab[data-tab="${tab}"]`).classList.add('active');
-  if (tab === 'map' && !mapInitialized) initMap();
+  if (tab === 'map') {
+    if (!mapInitialized) initMap();
+    else { renderSavedStationCards(); refreshMapMarkers(); }
+  }
   if (tab === 'timeline') renderTimeline();
   if (tab === '7day') renderWeek();
 }
 
-// ── Station Cycle ──────────────────────────────────────────
-function cycleStation() {
-  currentStationIdx = (currentStationIdx + 1) % STATIONS.length;
-  document.getElementById('station-subtitle').textContent = STATIONS[currentStationIdx].location.split(',')[0].toUpperCase();
-  loadAll();
-}
-
 // ── Dashboard ─────────────────────────────────────────────
 async function loadDashboard() {
-  const station = STATIONS[currentStationIdx];
+  const station = getActiveStation();
   document.getElementById('station-val').textContent = station.name;
   const moonNow = getMoonPhase(new Date());
   document.getElementById('moon-icon').textContent = moonNow.emoji;
@@ -878,9 +931,8 @@ async function loadDashboard() {
     console.error(e);
   }
 
-  // Conditions — Newport has wind sensors, Providence has water temp
-  fetchWind('8452660').then(w => { if(w) document.getElementById('wind-val').textContent = w; });
-  fetchWaterTemp('8454000').then(t => { if(t) document.getElementById('wtemp-val').textContent = t; });
+  fetchWind(station.id).then(w => { if(w) document.getElementById('wind-val').textContent = w; });
+  fetchWaterTemp(station.id).then(t => { if(t) document.getElementById('wtemp-val').textContent = t; });
 
   // Outlook (next 4 days)
   loadOutlook(station);
@@ -935,7 +987,7 @@ function changeDate(delta) {
 }
 
 async function renderTimeline() {
-  const station = STATIONS[currentStationIdx];
+  const station = getActiveStation();
   document.getElementById('tl-date-label').textContent = selectedDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
 
   const [hiloData, hourlyData] = await Promise.all([
@@ -996,8 +1048,8 @@ async function renderTimeline() {
 
 // ── 7-Day ──────────────────────────────────────────────────
 async function renderWeek() {
-  const station = STATIONS[currentStationIdx];
-  document.getElementById('week-subtitle').textContent = `High and low tides · ${station.location}`;
+  const station = getActiveStation();
+  document.getElementById('week-subtitle').textContent = `High and low tides · ${station.location || station.name}`;
   const container = document.getElementById('week-list');
   container.innerHTML = '<div class="skeleton skel-block" style="height:300px;border-radius:12px;"></div>';
 
@@ -1058,42 +1110,118 @@ async function renderWeek() {
   });
 }
 
-// ── Map ────────────────────────────────────────────────────
+// ── Map / Locations ────────────────────────────────────────
 function initMap() {
   mapInitialized = true;
-  const station = STATIONS[0];
-  map = L.map('map', { zoomControl: false, attributionControl: false }).setView([station.lat, station.lon], 11);
-
+  const s = getActiveStation();
+  map = L.map('map', { zoomControl: false, attributionControl: false }).setView([s.lat, s.lon], 11);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Esri'
   }).addTo(map);
-
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+  refreshMapMarkers();
+  renderSavedStationCards();
 
-  const stationList = document.getElementById('stations-list');
-  stationList.innerHTML = '';
+  const input = document.getElementById('map-search-input');
+  let searchTimeout;
+  input.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    const q = input.value.trim();
+    if (q.length < 2) {
+      document.getElementById('search-results').innerHTML = '';
+      searchResults = [];
+      return;
+    }
+    searchTimeout = setTimeout(() => runSearch(q), 350);
+  });
+}
 
-  STATIONS.forEach((s, i) => {
+async function runSearch(query) {
+  const el = document.getElementById('search-results');
+  el.innerHTML = '<div style="padding:10px 0;color:var(--on-surface-variant);font-size:14px;">Searching…</div>';
+
+  if (!allNoaaStations) {
+    if (noaaStationsLoading) return;
+    noaaStationsLoading = true;
+    try {
+      const res = await fetch('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions', {
+        headers: { 'User-Agent': 'Tidewatch/1.0 ClamCode (dennen@gmail.com)' }
+      });
+      const json = await res.json();
+      allNoaaStations = (json.stations || []).map(s => ({
+        id: s.id,
+        name: s.name,
+        location: s.state ? `${s.name}, ${s.state}` : s.name,
+        lat: parseFloat(s.lat),
+        lon: parseFloat(s.lng),
+      }));
+    } catch {
+      el.innerHTML = '<div style="padding:10px 0;color:var(--secondary);font-size:14px;">Search unavailable — check connection</div>';
+      noaaStationsLoading = false;
+      return;
+    }
+    noaaStationsLoading = false;
+  }
+
+  const q = query.toLowerCase();
+  searchResults = allNoaaStations.filter(s =>
+    s.name.toLowerCase().includes(q) || s.location.toLowerCase().includes(q)
+  ).slice(0, 8);
+
+  if (!searchResults.length) {
+    el.innerHTML = '<div style="padding:10px 0;color:var(--on-surface-variant);font-size:14px;">No stations found</div>';
+    return;
+  }
+
+  el.innerHTML = searchResults.map((s, i) => {
+    const saved = savedStations.find(st => st.id === s.id);
+    return `<div class="station-card" style="margin-bottom:8px;" onclick="addStation(searchResults[${i}])">
+      <div class="station-name">${s.name}</div>
+      <div class="station-meta">${s.location} · Station ${s.id}</div>
+      <div class="station-arrow" style="color:${saved?'var(--seafoam)':'var(--primary)'}">${saved ? '✓' : '+'}</div>
+    </div>`;
+  }).join('');
+}
+
+function refreshMapMarkers() {
+  if (!map) return;
+  mapMarkers.forEach(m => map.removeLayer(m));
+  mapMarkers = [];
+  savedStations.forEach(s => {
+    const isActive = s.id === activeStationId;
     const icon = L.divIcon({
-      html: `<div style="width:12px;height:12px;border-radius:50%;background:${i===0?'#F26430':'#86B3D1'};border:2px solid white;"></div>`,
+      html: `<div style="width:12px;height:12px;border-radius:50%;background:${isActive?'#F26430':'#86B3D1'};border:2px solid white;"></div>`,
       className: '', iconSize: [12,12], iconAnchor: [6,6]
     });
-    L.marker([s.lat, s.lon], { icon }).addTo(map)
+    const marker = L.marker([s.lat, s.lon], { icon }).addTo(map)
       .bindPopup(`<b>${s.name}</b><br>${s.location}`)
-      .on('click', () => selectStation(i));
+      .on('click', () => selectStation(s.id));
+    mapMarkers.push(marker);
+  });
+}
 
+function renderSavedStationCards() {
+  const list = document.getElementById('stations-list');
+  list.innerHTML = '';
+  savedStations.forEach(s => {
+    const isActive = s.id === activeStationId;
     const card = document.createElement('div');
-    card.className = 'station-card' + (i===0?' active':'');
-    card.id = 'scard-'+i;
+    card.className = 'station-card' + (isActive ? ' active' : '');
     card.innerHTML = `
-      <div class="station-tag">${s.tag}</div>
-      <div class="station-name">${s.name}</div>
-      <div class="station-meta" id="scard-meta-${i}">Loading…</div>
-      <div class="station-arrow">›</div>`;
-    card.onclick = () => selectStation(i);
-    stationList.append(card);
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="station-tag">${isActive ? 'ACTIVE' : 'SAVED'}</div>
+          <div class="station-name">${s.name}</div>
+          <div class="station-meta" id="scard-meta-${s.id}">${s.location}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${savedStations.length > 1 ? `<button onclick="event.stopPropagation();removeStation('${s.id}')" style="background:none;border:none;color:var(--outline);font-size:22px;cursor:pointer;line-height:1;padding:4px;">×</button>` : ''}
+          <span class="station-arrow">›</span>
+        </div>
+      </div>`;
+    if (!isActive) card.onclick = () => selectStation(s.id);
+    list.append(card);
 
-    // Load current status for each station card
     fetchHiLo(s.id, new Date()).then(hilo => {
       const next = hilo.find(t => {
         const [,time] = t.t.split(' ');
@@ -1101,23 +1229,46 @@ function initMap() {
         const now = new Date();
         return h*60+m > now.getHours()*60+now.getMinutes();
       });
-      if (next) {
+      const el = document.getElementById(`scard-meta-${s.id}`);
+      if (el && next) {
         const isH = next.type==='H';
-        document.getElementById(`scard-meta-${i}`).innerHTML =
-          `<span style="color:${isH?'#86B3D1':'#ffb59d'}">${isH?'↑':'↓'} ${fmtHeight(next.v)} ft</span> · Next: ${fmtTime(next.t)}`;
+        el.innerHTML = `${s.location} · <span style="color:${isH?'#86B3D1':'#ffb59d'}">${isH?'↑':'↓'} ${fmtHeight(next.v)} ft</span>`;
       }
     }).catch(()=>{});
   });
 }
 
-function selectStation(idx) {
-  document.querySelectorAll('.station-card').forEach((c,i) => c.classList.toggle('active', i===idx));
-  const s = STATIONS[idx];
-  map.flyTo([s.lat, s.lon], 12, { duration: 1 });
-  currentStationIdx = idx;
-  document.getElementById('station-subtitle').textContent = s.location.split(',')[0].toUpperCase();
-  switchTab('dashboard');
-  loadAll();
+function locateMe() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    if (!allNoaaStations) {
+      document.getElementById('map-search-input').value = 'Loading stations…';
+      runSearch('').then(() => findNearest(lat, lon));
+      return;
+    }
+    findNearest(lat, lon);
+  });
+}
+
+function findNearest(lat, lon) {
+  if (!allNoaaStations) return;
+  const nearest = allNoaaStations
+    .map(s => ({ ...s, dist: Math.hypot(s.lat - lat, s.lon - lon) }))
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, 5);
+  searchResults = nearest;
+  const el = document.getElementById('search-results');
+  el.innerHTML = '<div style="padding:4px 0 8px;font-size:13px;color:var(--on-surface-variant);">Nearest stations</div>' +
+    nearest.map((s, i) => {
+      const saved = savedStations.find(st => st.id === s.id);
+      return `<div class="station-card" style="margin-bottom:8px;" onclick="addStation(searchResults[${i}])">
+        <div class="station-name">${s.name}</div>
+        <div class="station-meta">${s.location} · Station ${s.id}</div>
+        <div class="station-arrow" style="color:${saved?'var(--seafoam)':'var(--primary)'}">${saved ? '✓' : '+'}</div>
+      </div>`;
+    }).join('');
+  document.getElementById('map-search-input').value = '';
 }
 
 // ── Reload ─────────────────────────────────────────────────
@@ -1169,6 +1320,9 @@ async function loadAll() {
   loadDashboard();
 }
 
+loadSavedStations();
+document.getElementById('station-subtitle').textContent =
+  (getActiveStation().location || getActiveStation().name).split(',')[0].toUpperCase();
 loadAll();
 
 // ── Date Picker ─────────────────────────────────────────────
