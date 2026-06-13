@@ -741,16 +741,21 @@ function getTrend(hourlyData) {
   return 'rising';
 }
 
+function parseTideTime(t) {
+  // t.t format from NOAA: "2026-06-13 19:07"
+  const [datePart, timePart] = t.t.split(' ');
+  const [y, mo, d] = datePart.split('-').map(Number);
+  const [h, m] = timePart.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, m);
+}
+
 function getNextTideLabel(hiloData) {
   const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
   for (const t of hiloData) {
-    const [,time] = t.t.split(' ');
-    const [h,m] = time.split(':').map(Number);
-    const tMin = h*60+m;
-    if (tMin > nowMin) {
-      const diffMin = tMin - nowMin;
-      const hrs = Math.floor(diffMin/60), mins = diffMin%60;
+    const tideTime = parseTideTime(t);
+    if (tideTime > now) {
+      const diffMin = Math.round((tideTime - now) / 60000);
+      const hrs = Math.floor(diffMin / 60), mins = diffMin % 60;
       return `${t.type === 'H' ? 'Next High' : 'Next Low'}: ${hrs}h ${mins}m · ${fmtTime(t.t)}`;
     }
   }
@@ -921,10 +926,12 @@ async function loadDashboard() {
   document.getElementById('moon-val').textContent = moonNow.name;
 
   const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   try {
-    const [hiloData, hourlyData] = await Promise.all([
+    const [hiloData, hourlyData, tomorrowHilo] = await Promise.all([
       fetchHiLo(station.id, today),
       fetchHourly(station.id, today),
+      fetchHiLo(station.id, tomorrow),
     ]);
 
     if (!hiloData.length && !hourlyData.length) throw new Error('No data returned');
@@ -946,9 +953,9 @@ async function loadDashboard() {
     const svgEl = document.getElementById('dash-svg');
     buildChart(svgEl, hourlyData, hiloData, 360, 100, true);
 
-    // Next tide — store for live countdown
-    todayHiloData = hiloData;
-    const nextLabel = getNextTideLabel(hiloData);
+    // Next tide — store today + tomorrow so countdown works past last tide of the day
+    todayHiloData = [...hiloData, ...tomorrowHilo];
+    const nextLabel = getNextTideLabel(todayHiloData);
     if (nextLabel) document.getElementById('next-tide-label').textContent = nextLabel;
 
     // Today events
