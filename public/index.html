@@ -1152,16 +1152,13 @@ async function runSearch(query) {
     if (noaaStationsLoading) return;
     noaaStationsLoading = true;
     try {
-      const res = await fetch('https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions', {
-        headers: { 'User-Agent': 'Tidewatch/1.0 ClamCode (dennen@gmail.com)' }
-      });
-      const json = await res.json();
-      allNoaaStations = (json.stations || []).map(s => ({
-        id: s.id,
-        name: s.name,
-        location: s.state ? `${s.name}, ${s.state}` : s.name,
-        lat: parseFloat(s.lat),
-        lon: parseFloat(s.lng),
+      const res = await fetch('/stations.json');
+      const raw = await res.json();
+      // Format: [[id, name, state, lat, lng], ...]
+      allNoaaStations = raw.map(s => ({
+        id: s[0], name: s[1],
+        location: s[2] ? `${s[1]}, ${s[2]}` : s[1],
+        lat: s[3], lon: s[4],
       }));
     } catch {
       el.innerHTML = '<div style="padding:10px 0;color:var(--secondary);font-size:14px;">Search unavailable — check connection</div>';
