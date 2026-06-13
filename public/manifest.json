@@ -1,7 +1,7 @@
 {
-  "name": "Portsmouth Tides",
-  "short_name": "Tides",
-  "description": "Live tide tracker for Sakonnet River & Coastal Portsmouth, RI",
+  "name": "Tidewatch",
+  "short_name": "Tidewatch",
+  "description": "Live tide tracker for Sakonnet River, RI — by ClamCode",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#131410",

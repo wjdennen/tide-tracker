@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Portsmouth Tides</title>
+<title>Tidewatch</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tides">
+<meta name="apple-mobile-web-app-title" content="Tidewatch">
 <meta name="theme-color" content="#131410">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <style>
@@ -331,7 +331,7 @@
     <div class="top-nav-left">
       <span class="wave-icon">〰</span>
       <div class="app-title">
-        Portsmouth Tides
+        Tidewatch
         <small id="station-subtitle">SAKONNET RIVER</small>
       </div>
     </div>
@@ -381,6 +381,10 @@
       <div style="margin-top:12px;">
         <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">7-Day Outlook <span style="font-size:11px;cursor:pointer;color:var(--primary);" onclick="switchTab('7day')">View All →</span></div>
         <div id="outlook-list"></div>
+      </div>
+
+      <div style="margin-top:24px;text-align:center;padding-bottom:4px;">
+        <span style="font-family:var(--font-display);font-size:11px;color:var(--outline);letter-spacing:0.04em;">🦪 A <strong style="color:var(--on-surface-variant);">ClamCode</strong> creation</span>
       </div>
     </div>
 
@@ -577,14 +581,14 @@ async function fetchNWSWeather(lat, lon) {
   if (nwsWeather) return nwsWeather;
   try {
     const ptRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`, {
-      headers: { 'User-Agent': 'PortsmouthTides/1.0 (dennen@gmail.com)' }
+      headers: { 'User-Agent': 'Tidewatch/1.0 ClamCode (dennen@gmail.com)' }
     });
     const ptJson = await ptRes.json();
     const forecastUrl = ptJson.properties?.forecast;
     if (!forecastUrl) return null;
 
     const fcRes = await fetch(forecastUrl, {
-      headers: { 'User-Agent': 'PortsmouthTides/1.0 (dennen@gmail.com)' }
+      headers: { 'User-Agent': 'Tidewatch/1.0 ClamCode (dennen@gmail.com)' }
     });
     const fcJson = await fcRes.json();
     const periods = fcJson.properties?.periods || [];
