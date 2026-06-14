@@ -1306,7 +1306,7 @@ function setRadarFrame(idx) {
   if (!radarFrames.length) return;
   radarLayer = L.tileLayer(
     `${radarHost}${radarFrames[idx].path}/256/{z}/{x}/{y}/2/1_1.png`,
-    { opacity: 0.55, zIndex: 500, attribution: 'RainViewer' }
+    { opacity: 0.55, zIndex: 500, attribution: 'RainViewer', maxNativeZoom: 12 }
   );
   radarLayer.addTo(map);
 }
