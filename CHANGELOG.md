@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v11] — 2026-06-13
+### Added
+- UV index in 7-Day Outlook — daily max from Open-Meteo (free, no API key, lat/lon based), color-coded: green ≤2, yellow ≤5, orange ≤7, red ≤10, purple 11+
+
 ## [v10] — 2026-06-13
 ### Fixed
 - 7-Day Outlook tides now shown in chronological order — previously highs were grouped before lows, making the first-of-day low appear to belong to the next day

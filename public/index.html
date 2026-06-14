@@ -670,6 +670,16 @@ function nwsIconToEmoji(iconUrl) {
   return '🌤';
 }
 
+async function fetchUVIndex(lat, lon) {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&daily=uv_index_max&forecast_days=7&timezone=auto`;
+    const json = await fetch(url).then(r => r.json());
+    const result = {};
+    json.daily.time.forEach((date, i) => { result[date] = Math.round(json.daily.uv_index_max[i]); });
+    return result;
+  } catch { return {}; }
+}
+
 async function fetchNWSWeather(lat, lon) {
   if (nwsWeather) return nwsWeather;
   try {
@@ -1061,14 +1071,15 @@ async function loadOutlook(station) {
   container.innerHTML = '';
   const today = new Date();
 
-  let rows, weather;
+  let rows, weather, uvIndex;
   try {
-    [rows, weather] = await Promise.all([
+    [rows, weather, uvIndex] = await Promise.all([
       Promise.all(Array.from({length:7}, (_,i) => {
         const d = new Date(today); d.setDate(today.getDate()+i);
         return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
       })),
       fetchNWSWeather(station.lat, station.lon),
+      fetchUVIndex(station.lat, station.lon),
     ]);
   } catch(e) {
     container.innerHTML = errorCard('loadOutlook(getActiveStation())');
@@ -1081,6 +1092,9 @@ async function loadOutlook(station) {
     const emoji = wx?.emoji ?? '🌤';
     const desc  = wx?.desc  ?? '—';
     const temp  = wx ? `${wx.tempF}°F` : '';
+    const uv    = uvIndex?.[dateKey(row.date)];
+    const uvColor = uv == null ? '' : uv <= 2 ? '#4caf50' : uv <= 5 ? '#cddc39' : uv <= 7 ? '#ff9800' : uv <= 10 ? '#f44336' : '#9c27b0';
+    const uvLabel = uv != null ? `<span style="color:${uvColor};margin-left:6px;">UV ${uv}</span>` : '';
     const el = document.createElement('div');
     el.className = 'outlook-row';
     el.innerHTML = `
@@ -1088,7 +1102,7 @@ async function loadOutlook(station) {
       <div class="outlook-weather">${emoji}</div>
       <div class="outlook-desc">
         <div>${desc}</div>
-        ${temp ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;">${temp}</div>` : ''}
+        ${temp ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;">${temp}${uvLabel}</div>` : ''}
       </div>
       <div class="outlook-tides">
         ${tides.map(t=>`<div class="${t.type==='H'?'outlook-high':'outlook-low'}">${t.type} ${fmtTime(t.t)}</div>`).join('')}
