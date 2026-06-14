@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+## [v21] — 2026-06-14
+### Fixed
+- Timeline trend badge showed "↑ FALLING" — arrow was hardcoded to ↑; now correctly shows ↑/↓
+- Timeline "Current Height" showed first H/L tide value on non-today dates — now shows "—" since there is no meaningful current height for future/past dates
+- Station cards next-tide finder ignored the date, breaking after midnight — now uses `parseTideTime()` for full Date comparison
+- NOAA API error responses (station offline, bad params) were silently cached as empty data — now throws so callers can show error state and retry
+- Timeline weather section was blank when navigating directly to Timeline before Dashboard loaded — now fetches NWS weather on demand
+- `locateMe` called `runSearch('')` as a side-effect, briefly showing 8 random stations — now uses dedicated `loadNoaaStations()` helper
+- `getTrend` could return wrong result with fewer than 2 hourly readings — now guards with early return
+- `fmtTime` would throw on malformed NOAA timestamp — now returns "—" safely
+### Changed
+- Wind and water temp now cached for 15 minutes; subsequent renders within the window skip the NOAA fallback chain
+- Auto-refresh (every 15 min) now only clears today's hourly tide data instead of wiping all cached predictions for future days
+- Manual reload now also clears UV index and conditions cache for a true full refresh
+- Station switch clears UV index and conditions cache in addition to tide and weather
+- Chart gradient IDs are now deterministic (based on SVG element ID) instead of random per render
+- Extracted `loadNoaaStations()` helper; `runSearch` and `locateMe` both use it, eliminating duplicate fetch/parse code
+- Removed dead `weekData` state variable (was declared and cleared but never used)
+
 ## [1.0.0] — 2026-06-14
 First stable release. Bundles all features developed across build versions v1–v17:
 - Live tide height, chart, rising/falling indicator, next-tide countdown

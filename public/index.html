@@ -560,8 +560,9 @@ function selectStation(id) {
   activeStationId = id;
   persistStations();
   nwsWeather = null;
+  cachedUVIndex = null;
+  conditionsCache = {};
   tideData = {};
-  weekData = {};
   const s = getActiveStation();
   document.getElementById('station-subtitle').textContent = (s.location || s.name).split(',')[0].toUpperCase();
   switchTab('dashboard');
@@ -571,13 +572,13 @@ function selectStation(id) {
 // ── App State ──────────────────────────────────────────────
 let selectedDate = new Date();
 let tideData = {};
-let weekData = {};
 let map = null;
 let mapInitialized = false;
 let mapMarkers = [];
 let nwsWeather = null;
 let cachedUVIndex = null;
 let todayHiloData = [];
+let conditionsCache = {};
 
 // ── Utilities ──────────────────────────────────────────────
 function fmt(date) {
@@ -590,9 +591,9 @@ function fmtDisplay(date) {
   return date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
 }
 function fmtTime(dtStr) {
-  // dtStr: "2023-10-24 06:30"
-  const [,time] = dtStr.split(' ');
-  const [h,m] = time.split(':').map(Number);
+  const parts = (dtStr || '').split(' ');
+  if (parts.length < 2) return dtStr || '—';
+  const [h,m] = parts[1].split(':').map(Number);
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
@@ -602,6 +603,27 @@ function fmtHeight(v) {
   return (n >= 0 ? '+' : '') + n.toFixed(1);
 }
 
+// ── Station loader ─────────────────────────────────────────
+async function loadNoaaStations() {
+  if (allNoaaStations) return true;
+  if (noaaStationsLoading) return false;
+  noaaStationsLoading = true;
+  try {
+    const res = await fetch('/stations.json');
+    const raw = await res.json();
+    allNoaaStations = raw.map(s => ({
+      id: s[0], name: s[1],
+      location: s[2] ? `${s[1]}, ${s[2]}` : s[1],
+      lat: s[3], lon: s[4],
+    }));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    noaaStationsLoading = false;
+  }
+}
+
 // ── NOAA API ───────────────────────────────────────────────
 async function fetchHiLo(stationId, date) {
   const key = `${stationId}-${fmt(date)}`;
@@ -609,6 +631,7 @@ async function fetchHiLo(stationId, date) {
   const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=tidewatch&format=json`;
   const res = await fetch(url);
   const json = await res.json();
+  if (json.error) throw new Error(json.error.message || 'NOAA error');
   const data = json.predictions || [];
   tideData[key] = data;
   return data;
@@ -620,6 +643,7 @@ async function fetchHourly(stationId, date) {
   const url = `${NOAA_BASE}?begin_date=${fmt(date)}&end_date=${fmt(date)}&station=${stationId}&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=h&units=english&application=tidewatch&format=json`;
   const res = await fetch(url);
   const json = await res.json();
+  if (json.error) throw new Error(json.error.message || 'NOAA error');
   const data = json.predictions || [];
   tideData[key] = data;
   return data;
@@ -638,22 +662,36 @@ const WIND_FALLBACKS   = [{ id: '8452660', name: 'Newport' }];
 const WTEMP_FALLBACKS  = [{ id: '8452944', name: 'Narragansett' }, { id: '8452660', name: 'Newport' }];
 
 async function fetchWaterTemp(stationId) {
+  const cached = conditionsCache[stationId]?.waterTemp;
+  if (cached && Date.now() - cached.at < 15 * 60 * 1000) return cached.data;
   try {
     const candidates = [{ id: stationId, name: null }, ...WTEMP_FALLBACKS];
     for (const { id, name } of candidates) {
       const row = await fetchNoaaProduct(id, 'water_temperature');
-      if (row) return { value: row.v + '°F', source: name };
+      if (row) {
+        const result = { value: row.v + '°F', source: name };
+        conditionsCache[stationId] = conditionsCache[stationId] || {};
+        conditionsCache[stationId].waterTemp = { data: result, at: Date.now() };
+        return result;
+      }
     }
   } catch {}
   return null;
 }
 
 async function fetchWind(stationId) {
+  const cached = conditionsCache[stationId]?.wind;
+  if (cached && Date.now() - cached.at < 15 * 60 * 1000) return cached.data;
   try {
     const candidates = [{ id: stationId, name: null }, ...WIND_FALLBACKS];
     for (const { id, name } of candidates) {
       const row = await fetchNoaaProduct(id, 'wind');
-      if (row) return { value: `${Math.round(row.s)} kt ${row.dr}`, source: name };
+      if (row) {
+        const result = { value: `${Math.round(row.s)} kt ${row.dr}`, source: name };
+        conditionsCache[stationId] = conditionsCache[stationId] || {};
+        conditionsCache[stationId].wind = { data: result, at: Date.now() };
+        return result;
+      }
     }
   } catch {}
   return null;
@@ -766,6 +804,7 @@ function interpolateCurrentHeight(hourlyData) {
 }
 
 function getTrend(hourlyData) {
+  if (hourlyData.length < 2) return 'rising';
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   for (let i = 0; i < hourlyData.length - 1; i++) {
@@ -866,7 +905,7 @@ function buildChart(svgEl, hourlyData, hiloData, viewW, viewH, showCurrentMarker
   const defs = document.createElementNS(ns,'defs');
 
   // Gradient fill
-  const gId = 'tg' + Math.random().toString(36).slice(2);
+  const gId = 'tg-' + (svgEl.id || 'chart');
   const grad = document.createElementNS(ns,'linearGradient');
   grad.setAttribute('id',gId); grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
   grad.setAttribute('x2','0'); grad.setAttribute('y2','1');
@@ -1117,7 +1156,11 @@ function changeDate(delta) {
 async function renderTimeline() {
   const station = getActiveStation();
   document.getElementById('tl-date-label').textContent = selectedDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-  document.getElementById('tl-forecast-list').innerHTML = '';
+  document.getElementById('tl-height').innerHTML = '<span class="skeleton skel-block" style="width:100px;height:40px;display:inline-block;"></span>';
+  document.getElementById('tl-trend').innerHTML = '';
+  document.getElementById('tl-svg').innerHTML = '';
+  document.getElementById('tl-weather').innerHTML = '';
+  document.getElementById('tl-forecast-list').innerHTML = '<div class="skeleton skel-block" style="height:60px;border-radius:12px;"></div>';
 
   let hiloData, hourlyData;
   try {
@@ -1138,19 +1181,20 @@ async function renderTimeline() {
   // Height
   const today = new Date();
   const isToday = fmt(today) === fmt(selectedDate);
-  let h, trend;
+  let h = null, trend = null;
   if (isToday && hourlyData.length) {
     h = interpolateCurrentHeight(hourlyData);
     trend = getTrend(hourlyData);
-  } else if (hiloData.length) {
-    h = parseFloat(hiloData[0].v);
-    trend = null;
   }
 
-  const sign = h >= 0 ? '+' : '';
-  document.getElementById('tl-height').innerHTML = `<span class="sign">${sign}</span>${Math.abs(h).toFixed(1)}<span style="font-size:20px;font-weight:400;opacity:0.7"> ft</span>`;
+  if (h !== null) {
+    const sign = h >= 0 ? '+' : '';
+    document.getElementById('tl-height').innerHTML = `<span class="sign">${sign}</span>${Math.abs(h).toFixed(1)}<span style="font-size:20px;font-weight:400;opacity:0.7"> ft</span>`;
+  } else {
+    document.getElementById('tl-height').innerHTML = '—';
+  }
   if (trend) {
-    document.getElementById('tl-trend').innerHTML = `<span class="trend-badge ${trend==='falling'?'falling':''}">↑ ${trend.toUpperCase()}</span>`;
+    document.getElementById('tl-trend').innerHTML = `<span class="trend-badge ${trend==='falling'?'falling':''}">${trend==='rising'?'↑':'↓'} ${trend.toUpperCase()}</span>`;
   } else {
     document.getElementById('tl-trend').innerHTML = '';
   }
@@ -1164,6 +1208,7 @@ async function renderTimeline() {
   document.getElementById('ac-sunset').textContent = sun.sunset;
 
   // Weather
+  if (!nwsWeather) await fetchNWSWeather(station.lat, station.lon);
   const wx = nwsWeather?.[dateKey(selectedDate)];
   const uv = cachedUVIndex?.[dateKey(selectedDate)];
   const uvColor = uv == null ? '' : uv <= 2 ? '#4caf50' : uv <= 5 ? '#cddc39' : uv <= 7 ? '#ff9800' : uv <= 10 ? '#f44336' : '#9c27b0';
@@ -1317,23 +1362,11 @@ async function runSearch(query) {
   el.innerHTML = '<div style="padding:10px 0;color:var(--on-surface-variant);font-size:14px;">Searching…</div>';
 
   if (!allNoaaStations) {
-    if (noaaStationsLoading) return;
-    noaaStationsLoading = true;
-    try {
-      const res = await fetch('/stations.json');
-      const raw = await res.json();
-      // Format: [[id, name, state, lat, lng], ...]
-      allNoaaStations = raw.map(s => ({
-        id: s[0], name: s[1],
-        location: s[2] ? `${s[1]}, ${s[2]}` : s[1],
-        lat: s[3], lon: s[4],
-      }));
-    } catch {
+    const ok = await loadNoaaStations();
+    if (!ok) {
       el.innerHTML = '<div style="padding:10px 0;color:var(--secondary);font-size:14px;">Search unavailable — check connection</div>';
-      noaaStationsLoading = false;
       return;
     }
-    noaaStationsLoading = false;
   }
 
   const q = query.toLowerCase();
@@ -1396,12 +1429,8 @@ function renderSavedStationCards() {
     list.append(card);
 
     fetchHiLo(s.id, new Date()).then(hilo => {
-      const next = hilo.find(t => {
-        const [,time] = t.t.split(' ');
-        const [h,m] = time.split(':').map(Number);
-        const now = new Date();
-        return h*60+m > now.getHours()*60+now.getMinutes();
-      });
+      const now = new Date();
+      const next = hilo.find(t => parseTideTime(t) > now);
       const el = document.getElementById(`scard-meta-${s.id}`);
       if (el && next) {
         const isH = next.type==='H';
@@ -1413,12 +1442,13 @@ function renderSavedStationCards() {
 
 function locateMe() {
   if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(pos => {
+  navigator.geolocation.getCurrentPosition(async pos => {
     const { latitude: lat, longitude: lon } = pos.coords;
     if (!allNoaaStations) {
       document.getElementById('map-search-input').value = 'Loading stations…';
-      runSearch('').then(() => findNearest(lat, lon));
-      return;
+      const ok = await loadNoaaStations();
+      document.getElementById('map-search-input').value = '';
+      if (!ok) return;
     }
     findNearest(lat, lon);
   });
@@ -1448,6 +1478,8 @@ function findNearest(lat, lon) {
 async function reloadData() {
   tideData = {};
   nwsWeather = null;
+  cachedUVIndex = null;
+  conditionsCache = {};
   const btn = document.getElementById('reload-btn');
   btn.style.transition = 'transform 0.6s ease';
   btn.style.transform = 'rotate(360deg)';
@@ -1455,7 +1487,7 @@ async function reloadData() {
   await loadAll();
   const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
   if (activeTab === 'timeline') renderTimeline();
-  if (activeTab === '7day') { weekData = {}; renderWeek(); }
+  if (activeTab === '7day') renderWeek();
 }
 
 // ── Service Worker ─────────────────────────────────────────
@@ -1465,12 +1497,15 @@ if ('serviceWorker' in navigator) {
 
 // ── Auto-refresh every 15 minutes ──────────────────────────
 setInterval(() => {
-  tideData = {};
+  const todayFmt = fmt(new Date());
+  const s = getActiveStation();
+  delete tideData[`hourly-${s.id}-${todayFmt}`];
+  delete tideData[`${s.id}-${todayFmt}`];
   nwsWeather = null;
   loadDashboard();
   const activeTab = document.querySelector('.nav-tab.active')?.dataset.tab;
   if (activeTab === 'timeline') renderTimeline();
-  if (activeTab === '7day') { weekData = {}; renderWeek(); }
+  if (activeTab === '7day') renderWeek();
 }, 15 * 60 * 1000);
 
 // ── Clock + live countdown ──────────────────────────────────
