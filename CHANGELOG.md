@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v5] — 2026-06-13
+### Fixed
+- Header pushed under iOS status bar — added `env(safe-area-inset-top)` to top nav padding
+- Empty space below bottom nav on iOS — `min-height: 100dvh` on `html`/`body` so background fills to physical screen edge
+
 ## [v4] — 2026-06-13
 ### Changed
 - Moon phase icons replaced with inline SVGs (warm `#e8d5a3` lit portion on dark disk) — visible on dark background across all 8 phases
