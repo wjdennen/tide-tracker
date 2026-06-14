@@ -1,5 +1,17 @@
 # Tide Tracker — Recommended Improvements
 
+## Maintenance
+- **Refresh station list** — `stations.json` is a static NOAA snapshot. Re-run this periodically (every few months) to pick up new/changed stations:
+  ```bash
+  curl "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?expand=details&type=tidepredictions" \
+    | node -e "
+  const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+  const out=d.stations.map(s=>[s.id,s.name,s.state??'',parseFloat(s.lat),parseFloat(s.lng)]);
+  process.stdout.write(JSON.stringify(out));
+  " > public/stations.json
+  ```
+  Then commit and push. No SW cache bump needed.
+
 ## High value, straightforward
 1. ~~**PWA manifest + service worker**~~ — app icon, splash screen, offline support. *(implemented)*
 2. ~~**Auto-refresh on a timer**~~ — 15-minute background refresh to keep live reading current. *(implemented)*
@@ -13,5 +25,18 @@
 ## Polish
 7. **Smooth tab transitions** — slide or fade between tabs instead of instant switch.
 8. **Chart touch interaction** — tap a point on the chart to see exact height and time at that position.
-9. **Better empty/error states** — if NOAA is down, show a clear message instead of dashes.
-10. **App icon and name** — proper wave favicon/icon for home screen.
+9. ~~**Better empty/error states**~~ — if NOAA is down, show a clear message instead of dashes. *(implemented)*
+10. ~~**App icon and name**~~ — proper wave favicon/icon for home screen. *(implemented)*
+
+## Performance — reduce API calls
+On a fresh dashboard load the app makes ~9 API calls. Two fixes would cut that significantly.
+
+**11. Cache wind and water temp** (biggest win)
+- `fetchWind()` and `fetchWaterTemp()` have no caching at all. They fire a fresh NOAA call on every `loadDashboard()` invocation, including the 15-minute auto-refresh timer.
+- Fix: add a `conditionsCache` object keyed by station ID, storing `{ wind, waterTemp, fetchedAt }`. Skip the fetch if `Date.now() - fetchedAt < 15 * 60 * 1000`. Clear on `reloadData()` (manual refresh) but NOT on the auto-refresh timer (the timer fires at 15 min anyway).
+- These are in `loadDashboard()` around line 975–976 in index.html.
+
+**12. Smarter auto-refresh cache clearing**
+- On auto-refresh (the `setInterval` at ~line 1358) and on `reloadData()` (~line 1339), the code does `tideData = {}` which nukes everything — including hilo predictions for future days that don't change.
+- Fix: instead of clearing the whole object, only delete today's hourly key: `delete tideData[\`hourly-${station.id}-${fmt(new Date())}\`]`. HiLo predictions for any date are stable and safe to keep cached indefinitely.
+- NWS weather (`nwsWeather = null`) can stay as-is since forecasts do update during the day.
