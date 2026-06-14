@@ -623,8 +623,9 @@ async function fetchHourly(stationId, date) {
 }
 
 async function fetchNoaaProduct(stationId, product) {
-  const today = fmt(new Date());
-  const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=${product}&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const url = `${NOAA_BASE}?begin_date=${fmt(yesterday)}&end_date=${fmt(today)}&station=${stationId}&product=${product}&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
   const json = await fetch(url).then(r => r.json());
   return (json.data && json.data.length) ? json.data[json.data.length - 1] : null;
 }

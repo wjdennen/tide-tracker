@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v15] — 2026-06-14
+### Fixed
+- Wind and water temp showed "—" just after midnight — NOAA has no observations yet for a brand new day; now queries yesterday through today and takes the most recent reading
+
 ## [v14] — 2026-06-13
 ### Fixed
 - Rising/Falling badge showed "Rising" incorrectly after 11 PM — loop didn't cover the last hour, fell through to hardcoded default; now falls back to comparing the final two data points
