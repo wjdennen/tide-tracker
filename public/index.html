@@ -621,26 +621,34 @@ async function fetchHourly(stationId, date) {
   return data;
 }
 
+async function fetchNoaaProduct(stationId, product) {
+  const today = fmt(new Date());
+  const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=${product}&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
+  const json = await fetch(url).then(r => r.json());
+  return (json.data && json.data.length) ? json.data[json.data.length - 1] : null;
+}
+
+// Fallback stations with known sensors, in preference order
+const WIND_FALLBACKS   = [{ id: '8452660', name: 'Newport' }];
+const WTEMP_FALLBACKS  = [{ id: '8452944', name: 'Narragansett' }, { id: '8452660', name: 'Newport' }];
+
 async function fetchWaterTemp(stationId) {
   try {
-    const today = fmt(new Date());
-    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=water_temperature&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
-    const res = await fetch(url);
-    const json = await res.json();
-    if (json.data && json.data.length) return json.data[json.data.length-1].v + '°F';
+    const candidates = [{ id: stationId, name: null }, ...WTEMP_FALLBACKS];
+    for (const { id, name } of candidates) {
+      const row = await fetchNoaaProduct(id, 'water_temperature');
+      if (row) return row.v + '°F' + (name ? ` (${name})` : '');
+    }
   } catch {}
   return null;
 }
 
 async function fetchWind(stationId) {
   try {
-    const today = fmt(new Date());
-    const url = `${NOAA_BASE}?begin_date=${today}&end_date=${today}&station=${stationId}&product=wind&datum=MLLW&time_zone=lst_ldt&units=english&application=tidewatch&format=json`;
-    const res = await fetch(url);
-    const json = await res.json();
-    if (json.data && json.data.length) {
-      const last = json.data[json.data.length-1];
-      return `${Math.round(last.s)} kt ${last.dr}`;
+    const candidates = [{ id: stationId, name: null }, ...WIND_FALLBACKS];
+    for (const { id, name } of candidates) {
+      const row = await fetchNoaaProduct(id, 'wind');
+      if (row) return `${Math.round(row.s)} kt ${row.dr}` + (name ? ` (${name})` : '');
     }
   } catch {}
   return null;

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v6] — 2026-06-13
+### Fixed
+- Wind and Water Temp conditions cards now show data for stations without sensors — falls back to nearest station with a live sensor (Newport for wind, Narragansett Pier for water temp), labelled with source
+
 ## [v5] — 2026-06-13
 ### Fixed
 - Header pushed under iOS status bar — added `env(safe-area-inset-top)` to top nav padding
