@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v4] — 2026-06-13
+### Changed
+- Moon phase icons replaced with inline SVGs (warm `#e8d5a3` lit portion on dark disk) — visible on dark background across all 8 phases
+
 ## [v3] — 2026-06-13
 ### Added
 - Satellite/street map toggle button overlaid on Map tab
