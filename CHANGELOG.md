@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v7] — 2026-06-13
+### Fixed
+- Conditions cards: fallback source ("via Newport", "via Narragansett") now renders as a small muted sub-label instead of inline text, keeping all four cards visually consistent
+- Bottom nav padding reduced in browser mode — tab bottom padding 16px → 6px, letting `env(safe-area-inset-bottom)` handle home indicator spacing
+
 ## [v6] — 2026-06-13
 ### Fixed
 - Wind and Water Temp conditions cards now show data for stations without sensors — falls back to nearest station with a live sensor (Newport for wind, Narragansett Pier for water temp), labelled with source
