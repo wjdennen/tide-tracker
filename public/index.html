@@ -776,7 +776,10 @@ function getTrend(hourlyData) {
       return parseFloat(b.v) > parseFloat(a.v) ? 'rising' : 'falling';
     }
   }
-  return 'rising';
+  // Past last data point — compare final two readings
+  const last = hourlyData[hourlyData.length - 1];
+  const prev = hourlyData[hourlyData.length - 2];
+  return parseFloat(last.v) > parseFloat(prev.v) ? 'rising' : 'falling';
 }
 
 function parseTideTime(t) {
@@ -929,7 +932,7 @@ function buildChart(svgEl, hourlyData, hiloData, viewW, viewH, showCurrentMarker
     const firstDate = hourlyData[0].t.split(' ')[0].replace(/-/g,'');
     if (todayStr === firstDate) {
       // Use same coordinate system as H/L markers: fractional hour / (numPoints - 1)
-      const nowIdx = now.getHours() + now.getMinutes() / 60;
+      const nowIdx = Math.min(now.getHours() + now.getMinutes() / 60, hourlyData.length - 1);
       const cx = padX + (nowIdx / (hourlyData.length - 1)) * W;
       const currentH = interpolateCurrentHeight(hourlyData);
       const cy = toY(currentH);

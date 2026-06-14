@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v14] — 2026-06-13
+### Fixed
+- Rising/Falling badge showed "Rising" incorrectly after 11 PM — loop didn't cover the last hour, fell through to hardcoded default; now falls back to comparing the final two data points
+- Current-time dot overflowed the right edge of the chart near midnight — nowIdx now clamped to chart bounds
+
 ## [v13] — 2026-06-13
 ### Fixed
 - `dateKey()` now uses local date instead of UTC — late-night UTC rollover was causing weather and UV lookups to match the wrong day
