@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-## [v18] — 2026-06-14
-### Added
-- Animated weather radar overlay on Map tab — fetches last 6 frames (~30 min) from RainViewer (free, no API key), animates at 600ms per frame; "🌧 Radar" button top-right of map toggles on/off
-
 ## [1.0.0] — 2026-06-14
 First stable release. Bundles all features developed across build versions v1–v17:
 - Live tide height, chart, rising/falling indicator, next-tide countdown
