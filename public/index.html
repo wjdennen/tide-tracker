@@ -278,13 +278,15 @@
   .map-search input { flex: 1; background: none; border: none; outline: none; color: var(--on-surface); font-family: var(--font-display); font-size: 16px; }
   .map-search input::placeholder { color: var(--on-surface-variant); }
   #map { height: 240px; border-radius: 12px; overflow: hidden; background: var(--surface-high); }
-  #map-layer-btn {
-    position: absolute; top: 10px; left: 10px; z-index: 1000;
+  #map-layer-btn, #map-radar-btn {
+    position: absolute; top: 10px; z-index: 1000;
     background: rgba(19,20,16,0.85); border: 1px solid var(--outline-variant);
     border-radius: 8px; padding: 6px 12px;
     font-family: var(--font-display); font-size: 13px; font-weight: 600; color: var(--on-surface);
     cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   }
+  #map-layer-btn { left: 10px; }
+  #map-radar-btn { right: 10px; }
   .nearby-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
   .station-card { background: var(--surface-container); border-radius: 14px; padding: 16px; margin-bottom: 10px; border: 1px solid var(--outline-variant); cursor: pointer; transition: border-color 0.2s; }
   .station-card:hover { border-color: var(--primary); }
@@ -468,6 +470,7 @@
       <div style="position:relative;margin-bottom:16px;">
         <div id="map"></div>
         <button id="map-layer-btn" onclick="toggleMapLayer()" title="Toggle map style">🗺 Map</button>
+        <button id="map-radar-btn" onclick="toggleRadar()" title="Toggle radar">🌧 Radar</button>
       </div>
       <div style="margin-bottom:12px;">
         <div class="nearby-title">My Locations</div>
@@ -1281,6 +1284,55 @@ const TILE_LAYERS = {
 };
 let activeMapLayer = 'satellite';
 
+// RainViewer radar
+let radarFrames = [];
+let radarHost = '';
+let radarLayer = null;
+let radarOn = false;
+let radarAnimInterval = null;
+let radarFrameIdx = 0;
+
+async function loadRadarFrames() {
+  try {
+    const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const data = await res.json();
+    radarHost = data.host;
+    radarFrames = data.radar.past.slice(-6);
+  } catch {}
+}
+
+function setRadarFrame(idx) {
+  if (radarLayer) map.removeLayer(radarLayer);
+  if (!radarFrames.length) return;
+  radarLayer = L.tileLayer(
+    `${radarHost}${radarFrames[idx].path}/256/{z}/{x}/{y}/2/1_1.png`,
+    { opacity: 0.55, zIndex: 500, attribution: 'RainViewer' }
+  );
+  radarLayer.addTo(map);
+}
+
+function toggleRadar() {
+  radarOn = !radarOn;
+  const btn = document.getElementById('map-radar-btn');
+  if (radarOn) {
+    if (!radarFrames.length) { radarOn = false; return; }
+    radarFrameIdx = 0;
+    setRadarFrame(radarFrameIdx);
+    radarAnimInterval = setInterval(() => {
+      radarFrameIdx = (radarFrameIdx + 1) % radarFrames.length;
+      setRadarFrame(radarFrameIdx);
+    }, 600);
+    btn.style.color = '#4db6ff';
+    btn.textContent = '⏹ Radar';
+  } else {
+    clearInterval(radarAnimInterval);
+    radarAnimInterval = null;
+    if (radarLayer) { map.removeLayer(radarLayer); radarLayer = null; }
+    btn.style.color = '';
+    btn.textContent = '🌧 Radar';
+  }
+}
+
 function toggleMapLayer() {
   const next = activeMapLayer === 'satellite' ? 'street' : 'satellite';
   map.removeLayer(TILE_LAYERS[activeMapLayer]);
@@ -1297,6 +1349,7 @@ function initMap() {
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   refreshMapMarkers();
   renderSavedStationCards();
+  loadRadarFrames();
 
   const input = document.getElementById('map-search-input');
   let searchTimeout;
