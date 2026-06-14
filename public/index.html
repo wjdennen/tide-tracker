@@ -858,8 +858,9 @@ function buildChart(svgEl, hourlyData, hiloData, viewW, viewH, showCurrentMarker
     const todayStr = fmt(now);
     const firstDate = hourlyData[0].t.split(' ')[0].replace(/-/g,'');
     if (todayStr === firstDate) {
-      const nowFrac = (now.getHours() * 60 + now.getMinutes()) / (23*60+59);
-      const cx = padX + nowFrac * W;
+      // Use same coordinate system as H/L markers: fractional hour / (numPoints - 1)
+      const nowIdx = now.getHours() + now.getMinutes() / 60;
+      const cx = padX + (nowIdx / (hourlyData.length - 1)) * W;
       const currentH = interpolateCurrentHeight(hourlyData);
       const cy = toY(currentH);
 
