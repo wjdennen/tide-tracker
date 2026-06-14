@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v12] — 2026-06-13
+### Added
+- 7-Day Outlook now shows high and low temps: `H 72°F / L 61°F` (low is NWS overnight low)
+- UV index moved to its own line below temps
+
 ## [v11] — 2026-06-13
 ### Added
 - UV index in 7-Day Outlook — daily max from Open-Meteo (free, no API key, lat/lon based), color-coded: green ≤2, yellow ≤5, orange ≤7, red ≤10, purple 11+

@@ -696,17 +696,23 @@ async function fetchNWSWeather(lat, lon) {
     const fcJson = await fcRes.json();
     const periods = fcJson.properties?.periods || [];
 
-    // Build a map of YYYY-MM-DD → daytime period data
+    // Build a map of YYYY-MM-DD → forecast data
     const byDate = {};
     for (const p of periods) {
-      if (!p.isDaytime) continue;
       const dateKey = p.startTime.slice(0, 10);
-      byDate[dateKey] = {
-        emoji: nwsIconToEmoji(p.icon),
-        desc: p.shortForecast,
-        tempF: p.temperature,
-        wind: p.windSpeed + ' ' + p.windDirection,
-      };
+      if (p.isDaytime) {
+        byDate[dateKey] = byDate[dateKey] || {};
+        Object.assign(byDate[dateKey], {
+          emoji: nwsIconToEmoji(p.icon),
+          desc: p.shortForecast,
+          tempHighF: p.temperature,
+          wind: p.windSpeed + ' ' + p.windDirection,
+        });
+      } else {
+        // Overnight low belongs to the day it starts (same date key)
+        byDate[dateKey] = byDate[dateKey] || {};
+        byDate[dateKey].tempLowF = p.temperature;
+      }
     }
     nwsWeather = byDate;
     return byDate;
@@ -1091,10 +1097,12 @@ async function loadOutlook(station) {
     const wx = weather?.[dateKey(row.date)];
     const emoji = wx?.emoji ?? '🌤';
     const desc  = wx?.desc  ?? '—';
-    const temp  = wx ? `${wx.tempF}°F` : '';
+    const tempHigh = wx?.tempHighF != null ? `H ${wx.tempHighF}°F` : null;
+    const tempLow  = wx?.tempLowF  != null ? `L ${wx.tempLowF}°F`  : null;
+    const tempLine = tempHigh && tempLow ? `${tempHigh} / ${tempLow}` : tempHigh || tempLow || '';
     const uv    = uvIndex?.[dateKey(row.date)];
     const uvColor = uv == null ? '' : uv <= 2 ? '#4caf50' : uv <= 5 ? '#cddc39' : uv <= 7 ? '#ff9800' : uv <= 10 ? '#f44336' : '#9c27b0';
-    const uvLabel = uv != null ? `<span style="color:${uvColor};margin-left:6px;">UV ${uv}</span>` : '';
+    const monoStyle = `font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;`;
     const el = document.createElement('div');
     el.className = 'outlook-row';
     el.innerHTML = `
@@ -1102,7 +1110,8 @@ async function loadOutlook(station) {
       <div class="outlook-weather">${emoji}</div>
       <div class="outlook-desc">
         <div>${desc}</div>
-        ${temp ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;">${temp}${uvLabel}</div>` : ''}
+        ${tempLine ? `<div style="${monoStyle}">${tempLine}</div>` : ''}
+        ${uv != null ? `<div style="${monoStyle}color:${uvColor};">UV ${uv}</div>` : ''}
       </div>
       <div class="outlook-tides">
         ${tides.map(t=>`<div class="${t.type==='H'?'outlook-high':'outlook-low'}">${t.type} ${fmtTime(t.t)}</div>`).join('')}
