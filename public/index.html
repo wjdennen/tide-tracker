@@ -775,16 +775,31 @@ function getNextTideLabel(hiloData) {
 }
 
 // ── Moon Phase ─────────────────────────────────────────────
+function moonSVG(idx, size) {
+  const L = '#e8d5a3', D = '#1e2118', B = '#3d4035';
+  const base = `<circle cx="12" cy="12" r="9" fill="${D}" stroke="${B}" stroke-width="0.75"/>`;
+  const lit = [
+    '',
+    `<path d="M 12 3 A 9 9 0 0 1 12 21 A 3 9 0 0 0 12 3 Z" fill="${L}"/>`,
+    `<path d="M 12 3 A 9 9 0 0 1 12 21 L 12 3 Z" fill="${L}"/>`,
+    `<path d="M 12 3 A 9 9 0 0 1 12 21 A 5 9 0 0 1 12 3 Z" fill="${L}"/>`,
+    `<circle cx="12" cy="12" r="9" fill="${L}"/>`,
+    `<path d="M 12 3 A 9 9 0 0 0 12 21 A 5 9 0 0 0 12 3 Z" fill="${L}"/>`,
+    `<path d="M 12 3 A 9 9 0 0 0 12 21 L 12 3 Z" fill="${L}"/>`,
+    `<path d="M 12 3 A 9 9 0 0 0 12 21 A 3 9 0 0 1 12 3 Z" fill="${L}"/>`,
+  ];
+  return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" style="vertical-align:middle;">${base}${lit[idx]}</svg>`;
+}
+
 function getMoonPhase(date) {
   const KNOWN_NEW_MOON = new Date('2000-01-06T18:14:00Z');
   const LUNAR_CYCLE = 29.53059;
   const days = (date - KNOWN_NEW_MOON) / 86400000;
   const phase = ((days % LUNAR_CYCLE) + LUNAR_CYCLE) % LUNAR_CYCLE;
   const idx = Math.round(phase / LUNAR_CYCLE * 8) % 8;
-  const emojis = ['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'];
-  const names  = ['New Moon','Waxing Crescent','First Quarter','Waxing Gibbous',
-                  'Full Moon','Waning Gibbous','Third Quarter','Waning Crescent'];
-  return { emoji: emojis[idx], name: names[idx] };
+  const names = ['New Moon','Waxing Crescent','First Quarter','Waxing Gibbous',
+                 'Full Moon','Waning Gibbous','Third Quarter','Waning Crescent'];
+  return { idx, name: names[idx] };
 }
 
 // ── SVG Tide Chart ─────────────────────────────────────────
@@ -936,7 +951,7 @@ async function loadDashboard() {
   const station = getActiveStation();
   document.getElementById('station-val').textContent = station.name;
   const moonNow = getMoonPhase(new Date());
-  document.getElementById('moon-icon').textContent = moonNow.emoji;
+  document.getElementById('moon-icon').innerHTML = moonSVG(moonNow.idx, 24);
   document.getElementById('moon-val').textContent = moonNow.name;
 
   const today = new Date();
@@ -1173,7 +1188,7 @@ async function renderWeek() {
 
     let html = `
       <div class="week-day-header">
-        <div class="wd-day">${dayLabel} <span style="font-size:16px;float:right;" title="${moon.name}">${moon.emoji}</span></div>
+        <div class="wd-day">${dayLabel} <span style="float:right;line-height:1;" title="${moon.name}">${moonSVG(moon.idx, 16)}</span></div>
         <div class="wd-date">${dateStr}</div>
       </div>
       ${weatherRow}`;
