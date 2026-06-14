@@ -1,6 +1,7 @@
 {
   "name": "Tidewatch",
   "short_name": "Tidewatch",
+  "version": "1.0.0",
   "description": "Live tide tracker for Sakonnet River, RI — by ClamCode",
   "start_url": "/",
   "display": "standalone",

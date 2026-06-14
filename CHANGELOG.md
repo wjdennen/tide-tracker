@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-14
+First stable release. Bundles all features developed across build versions v1–v17:
+- Live tide height, chart, rising/falling indicator, next-tide countdown
+- Dashboard conditions: wind, water temp (with sensor fallbacks), sunrise/sunset, moon phase
+- 7-Day Outlook with NWS weather, H/L temps, UV index (Open-Meteo), chronological tides
+- Timeline tab with date picker, weather summary, and astro info for any date
+- Multi-location support — search ~3,400 NOAA stations, save favorites
+- Map tab with satellite/street toggle (Esri via Leaflet)
+- PWA — installable on iOS and Android, offline app shell, iOS safe area support
+
+---
+*Build history below*
+
 ## [v17] — 2026-06-14
 ### Fixed
 - 7-Day Forecast tab showed "undefined°F" — `loadWeekView()` used a stale `wx.tempF` field (removed when H/L temps were added); now renders `H xx°F / L xx°F` consistent with the dashboard outlook
