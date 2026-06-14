@@ -23,6 +23,20 @@ A PWA tide tracker for coastal locations, built by [ClamCode](https://github.com
 - **UV index**: [Open-Meteo](https://open-meteo.com/) — daily max, 7-day forecast
 - **Station list**: bundled as `public/stations.json` (sourced from NOAA metadata — no CORS headers on the upstream endpoint so served locally)
 
+### Data sources for Sakonnet Point (lat 41.4551, lon −71.1997)
+
+| What | Source | Station / Endpoint |
+|------|--------|--------------------|
+| Tide predictions & hourly heights | NOAA CO-OPS | Station **8454049 — Sakonnet Point, RI** |
+| Wind | NOAA CO-OPS | Falls back to **Newport, RI (8452660)** — Sakonnet Point has no wind sensor |
+| Water temperature | NOAA CO-OPS | Falls back to **Narragansett Pier, RI (8452944)** — Sakonnet Point has no water temp sensor |
+| Weather forecast (desc, H/L temps, wind) | NWS API | Gridpoint via `api.weather.gov/points/41.4551,-71.1997` → office **BOX (Boston/Norton, MA)** — land-based forecast for the Portsmouth/Little Compton area |
+| UV index | Open-Meteo | Model-interpolated daily max at lat/lon — no station |
+| Sunrise / Sunset | Calculated in-app | Julian date algorithm using station coordinates — no API call |
+| Moon phase | Calculated in-app | Lunar cycle math from a known new moon epoch — no API call |
+
+> Wind and water temp readings are marine conditions (open water sensors). The NWS weather forecast is land-based.
+
 ## Station list
 
 `stations.json` is a static snapshot of NOAA tide stations. Refresh it periodically to pick up new/changed stations:
