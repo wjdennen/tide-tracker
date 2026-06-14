@@ -27,11 +27,11 @@ A PWA tide tracker for coastal locations, built by [ClamCode](https://github.com
 
 | What | Source | Station / Endpoint |
 |------|--------|--------------------|
-| Tide predictions & hourly heights | NOAA CO-OPS | Station **8454049 — Sakonnet Point, RI** |
-| Wind | NOAA CO-OPS | Falls back to **Newport, RI (8452660)** — Sakonnet Point has no wind sensor |
-| Water temperature | NOAA CO-OPS | Falls back to **Narragansett Pier, RI (8452944)** — Sakonnet Point has no water temp sensor |
-| Weather forecast (desc, H/L temps, wind) | NWS API | Gridpoint via `api.weather.gov/points/41.4551,-71.1997` → office **BOX (Boston/Norton, MA)** — land-based forecast for the Portsmouth/Little Compton area |
-| UV index | Open-Meteo | Model-interpolated daily max at lat/lon — no station |
+| Tide predictions & hourly heights | NOAA CO-OPS | [Station 8454049 — Sakonnet Point, RI](https://tidesandcurrents.noaa.gov/stationhome.html?id=8454049) |
+| Wind | NOAA CO-OPS | Falls back to [Newport, RI (8452660)](https://tidesandcurrents.noaa.gov/stationhome.html?id=8452660) — Sakonnet Point has no wind sensor |
+| Water temperature | NOAA CO-OPS | Falls back to [Narragansett Pier, RI (8452944)](https://tidesandcurrents.noaa.gov/stationhome.html?id=8452944) — Sakonnet Point has no water temp sensor |
+| Weather forecast (desc, H/L temps, wind) | [NWS API](https://www.weather.gov/documentation/services-web-api) | [Gridpoint 41.4551,−71.1997](https://api.weather.gov/points/41.4551,-71.1997) → office [BOX (Boston/Norton, MA)](https://www.weather.gov/box/) — land-based forecast for the Portsmouth/Little Compton area |
+| UV index | [Open-Meteo](https://open-meteo.com/) | Model-interpolated daily max at lat/lon — no station |
 | Sunrise / Sunset | Calculated in-app | Julian date algorithm using station coordinates — no API call |
 | Moon phase | Calculated in-app | Lunar cycle math from a known new moon epoch — no API call |
 
