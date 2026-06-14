@@ -23,6 +23,14 @@
 9. ~~**Better empty/error states**~~ — if NOAA is down, show a clear message instead of dashes. *(implemented)*
 10. ~~**App icon and name**~~ — proper wave favicon/icon for home screen. *(implemented)*
 
+## Timeline improvements
+**13. Hourly weather forecast on Timeline**
+- Add hourly weather below the existing weather summary (emoji/desc/temp/UV) and above the tide events list
+- Data source: NWS `forecastHourly` endpoint — same points call already used for daily forecast, just a different URL (`ptJson.properties.forecastHourly`)
+- Cache as `cachedHourlyWeather` (module-level, cleared on station change alongside `nwsWeather`)
+- Filter to hours on `selectedDate` for display
+- Design TBD: every 3 hours (6AM/9AM/noon/3PM/6PM/9PM) or all 24? Columns: time, emoji, temp, rain %. Wind optional.
+
 ## Performance — reduce API calls
 On a fresh dashboard load the app makes ~9 API calls. Two fixes would cut that significantly.
 
