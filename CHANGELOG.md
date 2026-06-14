@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v17] — 2026-06-14
+### Fixed
+- 7-Day Forecast tab showed "undefined°F" — `loadWeekView()` used a stale `wx.tempF` field (removed when H/L temps were added); now renders `H xx°F / L xx°F` consistent with the dashboard outlook
+
 ## [v16] — 2026-06-14
 ### Fixed
 - Timeline sunrise/sunset times were blank — duplicate `getSunTimes` definition caused the second to override the first with an incompatible return shape; merged into one function returning both Date objects and formatted strings

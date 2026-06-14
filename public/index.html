@@ -1243,7 +1243,7 @@ async function renderWeek() {
           <span style="font-size:22px;">${wx.emoji}</span>
           <div>
             <div style="font-size:14px;font-weight:500;color:var(--on-surface);">${wx.desc}</div>
-            <div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);">${wx.tempF}°F · ${wx.wind}</div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);">${wx.tempHighF != null ? `H ${wx.tempHighF}°F` : ''}${wx.tempLowF != null ? ` / L ${wx.tempLowF}°F` : ''}${wx.wind ? ` · ${wx.wind}` : ''}</div>
           </div>
         </div>`;
     }
