@@ -1,14 +1,9 @@
 # Tide Tracker — Recommended Improvements
 
 ## Maintenance
-- **Refresh station list** — `stations.json` is a static NOAA snapshot. Re-run this periodically (every few months) to pick up new/changed stations:
+- **Refresh station list** — `stations.json` is a static NOAA snapshot. Re-run every few months to pick up new/changed stations:
   ```bash
-  curl "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?expand=details&type=tidepredictions" \
-    | node -e "
-  const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  const out=d.stations.map(s=>[s.id,s.name,s.state??'',parseFloat(s.lat),parseFloat(s.lng)]);
-  process.stdout.write(JSON.stringify(out));
-  " > public/stations.json
+  ./scripts/refresh-stations.sh
   ```
   Then commit and push. No SW cache bump needed.
 
