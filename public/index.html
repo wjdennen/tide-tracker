@@ -1064,7 +1064,7 @@ async function loadOutlook(station) {
   let rows, weather;
   try {
     [rows, weather] = await Promise.all([
-      Promise.all(Array.from({length:4}, (_,i) => {
+      Promise.all(Array.from({length:7}, (_,i) => {
         const d = new Date(today); d.setDate(today.getDate()+i);
         return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
       })),

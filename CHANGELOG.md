@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v9] — 2026-06-13
+### Fixed
+- 7-Day Outlook on dashboard was only fetching 4 days — now correctly shows 7
+
 ## [v8] — 2026-06-13
 ### Changed
 - Replaced Station conditions card with Sunrise/Sunset card — times calculated locally from station lat/lon (no API call)
