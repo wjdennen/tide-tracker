@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [v16] — 2026-06-14
+### Fixed
+- Timeline sunrise/sunset times were blank — duplicate `getSunTimes` definition caused the second to override the first with an incompatible return shape; merged into one function returning both Date objects and formatted strings
+### Added
+- Timeline now shows weather forecast for the selected date — emoji, description, H/L temps, and UV index
+
 ## [v15] — 2026-06-14
 ### Fixed
 - Wind and water temp showed "—" just after midnight — NOAA has no observations yet for a brand new day; now queries yesterday through today and takes the most recent reading

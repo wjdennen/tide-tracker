@@ -438,6 +438,8 @@
         <div class="astro-chip"><span class="ac-icon">🌇</span><div class="ac-info"><div class="ac-label">Sunset</div><div class="ac-time" id="ac-sunset">—</div></div></div>
       </div>
 
+      <div id="tl-weather"></div>
+
       <div class="section-title">Daily Forecast</div>
       <div id="tl-forecast-list"></div>
     </div>
@@ -574,6 +576,7 @@ let map = null;
 let mapInitialized = false;
 let mapMarkers = [];
 let nwsWeather = null;
+let cachedUVIndex = null;
 let todayHiloData = [];
 
 // ── Utilities ──────────────────────────────────────────────
@@ -725,27 +728,23 @@ async function fetchNWSWeather(lat, lon) {
 
 // Sun times estimate for a given lat/lon
 function getSunTimes(date, lat, lon) {
-  const doy = Math.floor((date - new Date(date.getFullYear(),0,0)) / 86400000);
-  const declination = 23.45 * Math.sin((360/365 * (doy - 81)) * Math.PI / 180);
-  const latR = lat * Math.PI / 180;
-  const decR = declination * Math.PI / 180;
-  const haRad = Math.acos(-Math.tan(latR) * Math.tan(decR));
-  const ha = haRad * 180 / Math.PI;
-  // UTC offset for the date (crude: EDT=-4, EST=-5 based on month)
-  const mo = date.getMonth() + 1;
-  const utcOff = (mo >= 3 && mo <= 11) ? -4 : -5;
-  // Solar noon in local time: noon_UTC = 12 - lon/15, then add utcOff
-  const noon = 12 - lon / 15 + utcOff;
-  const rise = noon - ha / 15;
-  const set  = noon + ha / 15;
-  const toTime = h => {
-    const total = ((h % 24) + 24) % 24;
-    const hr = Math.floor(total);
-    const min = Math.round((total - hr) * 60);
-    const ampm = hr >= 12 ? 'PM' : 'AM';
-    return `${hr % 12 || 12}:${String(min).padStart(2,'0')} ${ampm}`;
-  };
-  return { sunrise: toTime(rise), sunset: toTime(set) };
+  const rad = Math.PI / 180;
+  const JD = Math.floor(date / 86400000) + 2440587.5;
+  const n = JD - 2451545.0 + 0.0008;
+  const Jstar = n - lon / 360;
+  const M = (357.5291 + 0.98560028 * Jstar) % 360;
+  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  const lam = (M + C + 180 + 102.9372) % 360;
+  const Jtr = 2451545.5 + Jstar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lam * rad);
+  const sinD = Math.sin(lam * rad) * Math.sin(23.4397 * rad);
+  const cosH = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * sinD) / (Math.cos(lat * rad) * Math.cos(Math.asin(sinD)));
+  if (Math.abs(cosH) > 1) return null;
+  const H = Math.acos(cosH) / rad;
+  const toDate = jd => new Date((jd - 2440587.5) * 86400000);
+  const rise = toDate(Jtr - H / 360);
+  const set  = toDate(Jtr + H / 360);
+  const fmt12 = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  return { rise, set, sunrise: fmt12(rise), sunset: fmt12(set) };
 }
 
 // Interpolate current height from hourly data
@@ -819,23 +818,6 @@ function moonSVG(idx, size) {
     `<path d="M 12 3 A 9 9 0 0 0 12 21 A 3 9 0 0 1 12 3 Z" fill="${L}"/>`,
   ];
   return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" style="vertical-align:middle;">${base}${lit[idx]}</svg>`;
-}
-
-function getSunTimes(date, lat, lon) {
-  const rad = Math.PI / 180;
-  const JD = Math.floor(date / 86400000) + 2440587.5;
-  const n = JD - 2451545.0 + 0.0008;
-  const Jstar = n - lon / 360;
-  const M = (357.5291 + 0.98560028 * Jstar) % 360;
-  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
-  const lam = (M + C + 180 + 102.9372) % 360;
-  const Jtr = 2451545.5 + Jstar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lam * rad);
-  const sinD = Math.sin(lam * rad) * Math.sin(23.4397 * rad);
-  const cosH = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * sinD) / (Math.cos(lat * rad) * Math.cos(Math.asin(sinD)));
-  if (Math.abs(cosH) > 1) return null;
-  const H = Math.acos(cosH) / rad;
-  const toDate = jd => new Date((jd - 2440587.5) * 86400000);
-  return { rise: toDate(Jtr - H / 360), set: toDate(Jtr + H / 360) };
 }
 
 function getMoonPhase(date) {
@@ -998,8 +980,7 @@ async function loadDashboard() {
   const station = getActiveStation();
   const sun = getSunTimes(new Date(), station.lat, station.lon);
   if (sun) {
-    const fmt12 = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    document.getElementById('sun-val').innerHTML = `↑ ${fmt12(sun.rise)}<br>↓ ${fmt12(sun.set)}`;
+    document.getElementById('sun-val').innerHTML = `↑ ${sun.sunrise}<br>↓ ${sun.sunset}`;
   }
   const moonNow = getMoonPhase(new Date());
   document.getElementById('moon-icon').innerHTML = moonSVG(moonNow.idx, 24);
@@ -1083,9 +1064,9 @@ async function loadOutlook(station) {
   container.innerHTML = '';
   const today = new Date();
 
-  let rows, weather, uvIndex;
+  let rows, weather;
   try {
-    [rows, weather, uvIndex] = await Promise.all([
+    [rows, weather, cachedUVIndex] = await Promise.all([
       Promise.all(Array.from({length:7}, (_,i) => {
         const d = new Date(today); d.setDate(today.getDate()+i);
         return fetchHiLo(station.id, d).then(hilo => ({ date: d, hilo }));
@@ -1106,7 +1087,7 @@ async function loadOutlook(station) {
     const tempHigh = wx?.tempHighF != null ? `H ${wx.tempHighF}°F` : null;
     const tempLow  = wx?.tempLowF  != null ? `L ${wx.tempLowF}°F`  : null;
     const tempLine = tempHigh && tempLow ? `${tempHigh} / ${tempLow}` : tempHigh || tempLow || '';
-    const uv    = uvIndex?.[dateKey(row.date)];
+    const uv    = cachedUVIndex?.[dateKey(row.date)];
     const uvColor = uv == null ? '' : uv <= 2 ? '#4caf50' : uv <= 5 ? '#cddc39' : uv <= 7 ? '#ff9800' : uv <= 10 ? '#f44336' : '#9c27b0';
     const monoStyle = `font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;`;
     const el = document.createElement('div');
@@ -1181,6 +1162,23 @@ async function renderTimeline() {
   const sun = getSunTimes(selectedDate, station.lat, station.lon);
   document.getElementById('ac-sunrise').textContent = sun.sunrise;
   document.getElementById('ac-sunset').textContent = sun.sunset;
+
+  // Weather
+  const wx = nwsWeather?.[dateKey(selectedDate)];
+  const uv = cachedUVIndex?.[dateKey(selectedDate)];
+  const uvColor = uv == null ? '' : uv <= 2 ? '#4caf50' : uv <= 5 ? '#cddc39' : uv <= 7 ? '#ff9800' : uv <= 10 ? '#f44336' : '#9c27b0';
+  const monoStyle = `font-family:var(--font-mono);font-size:13px;color:var(--on-surface-variant);`;
+  document.getElementById('tl-weather').innerHTML = wx ? `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 0 4px;">
+      <span style="font-size:28px;">${wx.emoji}</span>
+      <div>
+        <div style="font-size:15px;color:var(--on-surface);">${wx.desc}</div>
+        <div style="${monoStyle}margin-top:3px;">
+          ${wx.tempHighF != null ? `H ${wx.tempHighF}°F` : ''}${wx.tempLowF != null ? ` / L ${wx.tempLowF}°F` : ''}
+          ${uv != null ? `<span style="color:${uvColor};margin-left:8px;">UV ${uv}</span>` : ''}
+        </div>
+      </div>
+    </div>` : '';
 
   // Forecast list
   const list = document.getElementById('tl-forecast-list');
