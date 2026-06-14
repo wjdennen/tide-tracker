@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v8] — 2026-06-13
+### Changed
+- Replaced Station conditions card with Sunrise/Sunset card — times calculated locally from station lat/lon (no API call)
+
 ## [v7] — 2026-06-13
 ### Fixed
 - Conditions cards: fallback source ("via Newport", "via Narragansett") now renders as a small muted sub-label instead of inline text, keeping all four cards visually consistent

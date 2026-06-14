@@ -400,7 +400,7 @@
         <div class="cond-card"><div class="cond-icon">💨</div><div class="cond-label">Wind</div><div class="cond-value" id="wind-val">—</div></div>
         <div class="cond-card"><div class="cond-icon">🌡</div><div class="cond-label">Water Temp</div><div class="cond-value" id="wtemp-val">—</div></div>
         <div class="cond-card"><div class="cond-icon" id="moon-icon">🌑</div><div class="cond-label">Moon</div><div class="cond-value" style="font-size:11px;" id="moon-val">—</div></div>
-        <div class="cond-card"><div class="cond-icon">🌊</div><div class="cond-label">Station</div><div class="cond-value" style="font-size:11px;" id="station-val">—</div></div>
+        <div class="cond-card"><div class="cond-icon">🌅</div><div class="cond-label">Sun</div><div class="cond-value" style="font-size:15px;line-height:1.6;" id="sun-val">—</div></div>
       </div></div>
 
       <div style="margin-top:12px;">
@@ -801,6 +801,23 @@ function moonSVG(idx, size) {
   return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" style="vertical-align:middle;">${base}${lit[idx]}</svg>`;
 }
 
+function getSunTimes(date, lat, lon) {
+  const rad = Math.PI / 180;
+  const JD = Math.floor(date / 86400000) + 2440587.5;
+  const n = JD - 2451545.0 + 0.0008;
+  const Jstar = n - lon / 360;
+  const M = (357.5291 + 0.98560028 * Jstar) % 360;
+  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  const lam = (M + C + 180 + 102.9372) % 360;
+  const Jtr = 2451545.5 + Jstar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lam * rad);
+  const sinD = Math.sin(lam * rad) * Math.sin(23.4397 * rad);
+  const cosH = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * sinD) / (Math.cos(lat * rad) * Math.cos(Math.asin(sinD)));
+  if (Math.abs(cosH) > 1) return null;
+  const H = Math.acos(cosH) / rad;
+  const toDate = jd => new Date((jd - 2440587.5) * 86400000);
+  return { rise: toDate(Jtr - H / 360), set: toDate(Jtr + H / 360) };
+}
+
 function getMoonPhase(date) {
   const KNOWN_NEW_MOON = new Date('2000-01-06T18:14:00Z');
   const LUNAR_CYCLE = 29.53059;
@@ -959,7 +976,11 @@ function errorCard(retryFn) {
 // ── Dashboard ─────────────────────────────────────────────
 async function loadDashboard() {
   const station = getActiveStation();
-  document.getElementById('station-val').textContent = station.name;
+  const sun = getSunTimes(new Date(), station.lat, station.lon);
+  if (sun) {
+    const fmt12 = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    document.getElementById('sun-val').innerHTML = `↑ ${fmt12(sun.rise)}<br>↓ ${fmt12(sun.set)}`;
+  }
   const moonNow = getMoonPhase(new Date());
   document.getElementById('moon-icon').innerHTML = moonSVG(moonNow.idx, 24);
   document.getElementById('moon-val').textContent = moonNow.name;
