@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [v10] — 2026-06-13
+### Fixed
+- 7-Day Outlook tides now shown in chronological order — previously highs were grouped before lows, making the first-of-day low appear to belong to the next day
+
 ## [v9] — 2026-06-13
 ### Fixed
 - 7-Day Outlook on dashboard was only fetching 4 days — now correctly shows 7

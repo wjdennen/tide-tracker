@@ -1076,8 +1076,7 @@ async function loadOutlook(station) {
   }
 
   rows.forEach((row, i) => {
-    const highs = row.hilo.filter(t=>t.type==='H');
-    const lows  = row.hilo.filter(t=>t.type==='L');
+    const tides = [...row.hilo].sort((a, b) => a.t.localeCompare(b.t));
     const wx = weather?.[dateKey(row.date)];
     const emoji = wx?.emoji ?? '🌤';
     const desc  = wx?.desc  ?? '—';
@@ -1092,8 +1091,7 @@ async function loadOutlook(station) {
         ${temp ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--on-surface-variant);margin-top:1px;">${temp}</div>` : ''}
       </div>
       <div class="outlook-tides">
-        ${highs.slice(0,2).map(t=>`<div class="outlook-high">H ${fmtTime(t.t)}</div>`).join('')}
-        ${lows.slice(0,1).map(t=>`<div class="outlook-low">L ${fmtTime(t.t)}</div>`).join('')}
+        ${tides.map(t=>`<div class="${t.type==='H'?'outlook-high':'outlook-low'}">${t.type} ${fmtTime(t.t)}</div>`).join('')}
       </div>`;
     container.append(el);
   });
