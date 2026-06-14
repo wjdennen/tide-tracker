@@ -57,13 +57,31 @@ npx serve public
 
 ## Deploy
 
-Deploys automatically via Cloudflare Pages on push to `main`. Manual deploy:
+### Cloudflare Pages — first-time setup
+
+1. Install Wrangler: `npm install -g wrangler`
+2. Log in: `wrangler login`
+3. Create the project (one time only):
+   ```bash
+   wrangler pages project create tidewatch
+   ```
+4. Connect your GitHub repo in the Cloudflare dashboard → Workers & Pages → your project → Settings → Git integration → connect to `wjdennen/tide-tracker`, branch `main`.
+
+After that, every push to `main` triggers an automatic deploy. No manual step needed.
+
+### Manual deploy (skip CI)
 
 ```bash
-npx wrangler deploy
+wrangler pages deploy public
 ```
 
-> **Note:** bump `const CACHE = 'tidewatch-vN'` in `public/sw.js` on every deploy that changes app shell files (`index.html`, `manifest.json`, icons), so installed PWAs pick up the update.
+### Project name
+
+The project name in `wrangler.toml` (`name = "tidewatch"`) must match the name of the project in the Cloudflare dashboard. If they differ, Cloudflare's bot will open a branch called `update_worker_name_to_<name>` on every push. Keep them in sync to avoid the noise.
+
+### Service worker cache
+
+Bump `const CACHE = 'tidewatch-vN'` in `public/sw.js` on every deploy that changes app shell files (`index.html`, `manifest.json`, icons). This forces installed PWAs to pick up the update. The current version is tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ## Stack
 
