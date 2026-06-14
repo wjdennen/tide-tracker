@@ -1,4 +1,4 @@
-const CACHE = 'tidewatch-v12';
+const CACHE = 'tidewatch-v13';
 const SHELL = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 // Install: cache the app shell

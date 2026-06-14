@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v13] — 2026-06-13
+### Fixed
+- `dateKey()` now uses local date instead of UTC — late-night UTC rollover was causing weather and UV lookups to match the wrong day
+- Open-Meteo UV fetch increased to `forecast_days=8` to ensure all 7 outlook days are covered
+
 ## [v12] — 2026-06-13
 ### Added
 - 7-Day Outlook now shows high and low temps: `H 72°F / L 61°F` (low is NWS overnight low)

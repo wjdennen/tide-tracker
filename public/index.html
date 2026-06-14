@@ -672,7 +672,7 @@ function nwsIconToEmoji(iconUrl) {
 
 async function fetchUVIndex(lat, lon) {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&daily=uv_index_max&forecast_days=7&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&daily=uv_index_max&forecast_days=8&timezone=auto`;
     const json = await fetch(url).then(r => r.json());
     const result = {};
     json.daily.time.forEach((date, i) => { result[date] = Math.round(json.daily.uv_index_max[i]); });
@@ -1070,7 +1070,9 @@ async function loadDashboard() {
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-function dateKey(d) { return d.toISOString().slice(0,10); }
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 async function loadOutlook(station) {
   const container = document.getElementById('outlook-list');
